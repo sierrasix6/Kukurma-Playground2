@@ -13,6 +13,25 @@ TEAM_KEYWORDS = [
     "ajax", "benfica", "porto", "celtic", "rangers",
     "flamengo", "palmeiras", "boca juniors", "river plate",
     "persib", "persija", "arema", "bali united", "psis semarang", "borneo fc",
+    # Indonesian national team names
+    "meksiko", "ceko", "republik ceko", "inggris", "jerman", "prancis",
+    "belanda", "brasil", "spanyol", "portugis", "italia", "belgia",
+    "kroasia", "polandia", "swiss", "ukraina", "turki", "maroko",
+    "jepang", "korea selatan", "korea", "australia", "ekuador", "kolombia",
+    "uruguay", "chili", "peru", "ghana", "nigeria", "kamerun", "mesir",
+    "aljazair", "arab saudi", "kanada", "kosta rika", "rusia", "swedia",
+    "denmark", "norwegia", "skotlandia", "hungaria", "rumania", "serbia",
+    "yunani", "austria", "slowakia", "islandia", "indonesia", "thailand",
+    "vietnam", "malaysia", "filipina", "tiongkok", "senegal", "venezuela",
+    "paraguay", "bolivia", "iran", "as",
+    # English national team names
+    "mexico", "czech republic", "england", "germany", "france", "netherlands",
+    "brazil", "spain", "portugal", "italy", "belgium", "croatia", "poland",
+    "switzerland", "ukraine", "turkey", "morocco", "japan", "south korea",
+    "colombia", "chile", "senegal", "ghana", "nigeria", "cameroon",
+    "egypt", "algeria", "saudi arabia", "canada", "costa rica", "russia",
+    "sweden", "denmark", "norway", "scotland", "hungary", "romania",
+    "greece", "slovakia", "iceland", "argentina", "usa", "united states",
 ]
 
 VS_PATTERNS = [
@@ -79,10 +98,21 @@ def clean_team_name(name: str) -> str:
         r'\bhome\b', r'\bkandang\b', r'\btamu\b', r'\bdandang\b',
         r'\bwho\b', r'\bwill\b', r'\bwin\b', r'\btonight\b', r'\btomorrow\b',
         r'\bpredict\b', r'\bmatch\b', r'\bgame\b', r'\bscore\b',
+        r'\blusa\b', r'\bweekend\b', r'\bakhir\b', r'\bpekan\b',
+        r'\bminggu\b', r'\bdepan\b', r'\bnext\b', r'\bweek\b',
+        # Month names (Indonesian and English)
+        r'\bjanuary\b', r'\bfebruary\b', r'\bmarch\b', r'\bapril\b',
+        r'\bmay\b', r'\bjune\b', r'\bjuly\b', r'\baugust\b',
+        r'\bseptember\b', r'\boctober\b', r'\bnovember\b', r'\bdecember\b',
+        r'\bjanuari\b', r'\bfebruari\b', r'\bmaret\b',
+        r'\bmei\b', r'\bjuni\b', r'\bjuli\b', r'\bagustus\b',
+        r'\boktober\b', r'\bdesember\b',
         r'\?', r'!', r',', r'\.',
     ]
     for word in noise_words:
         name = re.sub(word, '', name, flags=re.IGNORECASE).strip()
+    # Strip standalone numbers (dates, years like 12, 2026)
+    name = re.sub(r'\b\d{1,4}\b', '', name)
     name = re.sub(r'\s+', ' ', name).strip()
     return name
 
