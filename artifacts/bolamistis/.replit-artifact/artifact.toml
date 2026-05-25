@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "BolaMistis AI"
+version = "1.0.0"
+id = "artifacts/bolamistis"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18215
+
+[services.development]
+run = "pnpm --filter @workspace/bolamistis run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bolamistis", "run", "build" ]
+publicDir = "artifacts/bolamistis/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18215"
+BASE_PATH = "/"

@@ -1,0 +1,63 @@
+# Product Requirement Document (PRD): AI Football Score Predictor (Auto-Data Sourcing)
+
+## 1. Project Overview
+**Project Name:** BolaMistis AI (Football Score Predictor)
+**Goal:** Membangun aplikasi web berbasis chat di mana user bisa meminta prediksi skor pertandingan sepak bola (hanya dengan input nama tim & tanggal).
+**Unique Constraint (The Challenge):** Sistem harus **sepenuhnya otonom dalam mencari sumber data**. User (Developer) **TIDAK AKAN** menyediakan API Key apapun. AI Agent Replit harus mencari library open-source, public endpoints, atau teknik scraping yang aman untuk mendapatkan data statistik sepak bola secara GRATIS dan (sebisa mungkin) LIMITLESS.
+
+## 2. User Flow
+1.  **Landing Page:** User melihat antarmuka chat sederhana (mirip ChatGPT/WhatsApp).
+2.  **Input:** User mengetik, contoh: *"Prediksi skor Chelsea vs Man United besok malam."*
+3.  **Processing (AI Agent Task):**
+    *   Sistem menggunakan NLP untuk mengekstrak entitas: `Home Team`, `Away Team`, `Date`.
+    *   Sistem secara otomatis melakukan *fetching* data statistik (Head-to-Head, 5 match terakhir, posisi liga) dari sumber data yang ditemukan sendiri oleh Agent.
+    *   Sistem menghitung probabilitas skor berdasarkan data tersebut.
+4.  **Output:** AI membalas dengan:
+    *   Prediksi Skor (cth: 2-1).
+    *   Alasan Statistik (cth: "Chelsea menang 3x dari 5 laga kandang terakhir").
+
+## 3. Technical Requirements & Stack
+*   **Platform:** Replit (Web App).
+*   **Frontend:** HTML/CSS/JS sederhana atau Streamlit (Python) untuk kecepatan development.
+*   **Backend:** Python (Flask/FastAPI) - Disarankan Python karena ekosistem library data science/scraping yang kuat.
+*   **AI/LLM Integration:** Menggunakan OpenAI API (jika environment variable tersedia) atau logika statistik internal jika tidak ada LLM key.
+
+## 4. "The Challenge": Autonomous Data Sourcing Strategy
+**Instruksi Khusus untuk Replit AI Agent:**
+Kamu dilarang meminta API Key berbayar kepada user. Kamu harus mengimplementasikan salah satu strategi berikut untuk mendapatkan data sepak bola:
+
+### Strategy A: Python Libraries (Prioritas Utama)
+Cari dan install library Python yang bertindak sebagai wrapper untuk public data.
+*   *Target Search:* `soccer-data-api`, `sports.py`, `worldfootball`, atau library scraping `fbref`.
+*   *Goal:* Mengambil data tanpa autentikasi kompleks.
+
+### Strategy B: Public JSON Endpoints
+Cari endpoint publik yang sering digunakan untuk live score atau statistik dasar yang tidak memerlukan header otorisasi ketat.
+
+### Strategy C: Safe Web Scraping
+Jika tidak ada API/Library yang jalan, buat fungsi scraping ringan menggunakan `BeautifulSoup` atau `pandas.read_html` ke situs statistik publik (seperti tabel klasemen atau hasil pertandingan terakhir) untuk mendapatkan data mentah.
+
+## 5. Functional Specifications
+
+### A. Chat Interface
+*   Input text box.
+*   Chat bubble history.
+*   Loading indicator saat AI sedang "mencari data" (karena proses scraping/fetching mungkin butuh waktu 2-3 detik).
+
+### B. Prediction Engine Logic
+Jangan hanya menebak acak. Implementasikan algoritma sederhana:
+1.  **Fetch Data:** Ambil 5 hasil terakhir Tim A dan Tim B.
+2.  **Weighting:**
+    *   Menang = +3 poin kekuatan.
+    *   Seri = +1 poin kekuatan.
+    *   Kalah = 0.
+3.  **Comparison:** Bandingkan skor kekuatan Tim A vs Tim B.
+4.  **Result:** Konversi selisih kekuatan menjadi prediksi skor (misal: beda jauh = 3-0, beda tipis = 1-0 atau 2-1).
+
+## 6. Success Criteria (MVP)
+*   [ ] Aplikasi berjalan tanpa error "API Key Missing".
+*   [ ] User bisa input nama tim dan mendapat balasan skor.
+*   [ ] Balasan menyertakan setidaknya 1 data fakta nyata (contoh: "Karena Tim A menang di pertandingan terakhirnya...").
+
+---
+**Note to Replit AI Agent:** Start by setting up the Python environment and searching for the best working 'free-to-use' football data library available in the pip repository right now.

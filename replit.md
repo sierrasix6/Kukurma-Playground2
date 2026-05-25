@@ -1,36 +1,56 @@
-# [Project name]
+# BolaMistis AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Aplikasi web prediksi skor sepak bola berbasis chat. User ketik nama tim dan tanggal, sistem mencari data statistik nyata secara otomatis (tanpa API key) dan menghitung prediksi skor.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `python3 /home/runner/workspace/artifacts/api-server/python/main.py` — run Python FastAPI backend (port 8080)
+- `pnpm --filter @workspace/bolamistis run dev` — run React frontend
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
+- **Backend:** Python 3.11 + FastAPI + Uvicorn (menggantikan Express untuk artifact api-server)
+- **Frontend:** React + Vite + Tailwind CSS + shadcn/ui (artifact: bolamistis)
+- **Data Source:** ESPN Public API (gratis, tanpa API key) — 132 tim dari 12 liga dunia
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/api-server/python/main.py` — FastAPI app, endpoint `/api/chat` dan `/api/predict`
+- `artifacts/api-server/python/data_fetcher.py` — ESPN API integration, team search, last results, H2H
+- `artifacts/api-server/python/nlp_extractor.py` — NLP untuk ekstrak nama tim & tanggal dari teks bebas
+- `artifacts/bolamistis/src/pages/ChatPage.tsx` — main chat UI
+- `artifacts/bolamistis/src/components/PredictionCard.tsx` — prediction stats card
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (hanya endpoint Node.js /healthz)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Backend Python FastAPI berjalan di port 8080 (sama dengan artifact api-server Node.js yang diganti)
+- Data fetching menggunakan ESPN Public API — tidak perlu API key, mendukung 130+ tim dari 12 liga
+- NLP extraction menggunakan regex (tidak butuh model ML) — cukup untuk nama tim populer
+- Prediction algorithm berbasis weighted form points: W=3, D=1, L=0 atas 5 laga terakhir
+- React frontend call langsung ke `/api/chat` via fetch (bukan generated hooks karena backend Python)
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Chat interface mirip WhatsApp/ChatGPT
+- User ketik "Chelsea vs Arsenal besok" → sistem fetch data ESPN → hitung prediksi → tampilkan:
+  - Skor prediksi (misal: 1-0)
+  - Data statistik 5 laga terakhir per tim
+  - Head-to-head history
+  - Comparison strength bar
+  - Badge logo tim dari ESPN
+
+## "The Challenge" — Solusi Data Gratis
+
+**ESPN Public API** (`site.api.espn.com`) — GRATIS, tanpa API key, tanpa rate limit ketat:
+- `GET /apis/site/v2/sports/soccer/{league}/teams` — daftar tim + logo
+- `GET /apis/site/v2/sports/soccer/{league}/teams/{id}/schedule` — jadwal & hasil
+
+Liga yang didukung: EPL, La Liga, Bundesliga, Serie A, Ligue 1, Liga Portugal, Eredivisie, Championship, Liga MX, Brasileirao, Liga Argentina, MLS.
 
 ## User preferences
 
@@ -38,7 +58,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- ESPN API mengembalikan `score` sebagai dict `{value: N}` atau string tergantung versi — code sudah handle keduanya
+- Python backend dijalankan langsung via `python3 main.py`, bukan via pnpm
+- Artifact api-server sekarang menjalankan Python bukan Node.js (artifact.toml sudah diupdate)
+- Team index dibangun saat startup (12 API calls) — first request ~5-8 detik, setelahnya cepat
 
 ## Pointers
 
