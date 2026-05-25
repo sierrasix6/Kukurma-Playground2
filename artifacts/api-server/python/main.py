@@ -1,12 +1,15 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from nlp_extractor import extract_teams_and_date
 from data_fetcher import fetch_team_data, get_h2h, predict_score
+from database import init_db, get_user_by_username, get_user_by_id, create_user, verify_password, deduct_credit, UNLIMITED
+from auth import create_token, decode_token
 
-app = FastAPI(title="BolaMistis AI API", root_path="/api")
+app = FastAPI(title="Kukurma Playground API", root_path="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,6 +17,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
+
+# ---------- Auth models ----------
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
 
 
 class ChatRequest(BaseModel):
@@ -25,6 +42,66 @@ class PredictRequest(BaseModel):
     away_team: str
     date: str | None = None
 
+
+# ---------- Auth helpers ----------
+
+def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Login diperlukan")
+    payload = decode_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token tidak valid atau kadaluarsa")
+    user = get_user_by_id(int(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=401, detail="Pengguna tidak ditemukan")
+    return user
+
+
+def user_to_response(user: dict) -> dict:
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "credits": user["credits"],
+    }
+
+
+# ---------- Auth routes ----------
+
+@app.post("/auth/register")
+async def register(req: AuthRequest):
+    if len(req.username.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username minimal 3 karakter")
+    if len(req.password) < 3:
+        raise HTTPException(status_code=400, detail="Password minimal 3 karakter")
+    user = create_user(req.username.strip(), req.password)
+    if not user:
+        raise HTTPException(status_code=409, detail="Username sudah digunakan")
+    token = create_token(user["id"], user["username"])
+    return {"token": token, "user": user_to_response(user)}
+
+
+@app.post("/auth/login")
+async def login(req: AuthRequest):
+    user = get_user_by_username(req.username.strip())
+    if not user or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Username atau password salah")
+    token = create_token(user["id"], user["username"])
+    return {"token": token, "user": user_to_response(user)}
+
+
+@app.get("/auth/me")
+async def me(current_user: dict = Depends(get_current_user)):
+    return user_to_response(current_user)
+
+
+# ---------- Health ----------
+
+@app.get("/healthz")
+async def health():
+    return {"status": "ok"}
+
+
+# ---------- Prediction logic ----------
 
 def build_reasoning(
     home_name: str,
@@ -87,17 +164,22 @@ def build_reasoning(
     return "\n".join(lines)
 
 
-@app.get("/healthz")
-async def health():
-    return {"status": "ok"}
-
+# ---------- Chat & predict routes (require auth) ----------
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user)):
+    # Check credits
+    credits = current_user["credits"]
+    if credits != UNLIMITED and credits <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail="Kredit habis! Kamu sudah menggunakan semua 5 kredit prediksi.",
+        )
+
     message = req.message.strip()
     if not message:
         return JSONResponse(
-            {"reply": "Hei! Tanyakan prediksi pertandingan seperti: Chelsea vs Arsenal besok"},
+            {"reply": "Tanyakan prediksi pertandingan seperti: Chelsea vs Arsenal besok"},
             status_code=400,
         )
 
@@ -114,6 +196,7 @@ async def chat(req: ChatRequest):
             ),
             "extracted": extracted,
             "data_source": None,
+            "credits_remaining": credits,
         }
 
     home_name = extracted["home_team"]
@@ -145,7 +228,11 @@ async def chat(req: ChatRequest):
             ),
             "extracted": extracted,
             "data_source": "ESPN Public API",
+            "credits_remaining": credits,
         }
+
+    # Deduct credit AFTER successful data fetch
+    new_credits = deduct_credit(current_user["id"])
 
     reasoning = build_reasoning(
         actual_home, actual_away,
@@ -192,17 +279,22 @@ async def chat(req: ChatRequest):
         "extracted": extracted,
         "data": data_points,
         "data_source": "ESPN Public API (gratis, tanpa API key)",
+        "credits_remaining": new_credits,
     }
 
 
 @app.post("/predict")
-async def predict(req: PredictRequest):
+async def predict(req: PredictRequest, current_user: dict = Depends(get_current_user)):
+    credits = current_user["credits"]
+    if credits != UNLIMITED and credits <= 0:
+        raise HTTPException(status_code=402, detail="Kredit habis!")
     home_data = fetch_team_data(req.home_team)
     away_data = fetch_team_data(req.away_team)
     h2h = get_h2h(home_data, away_data)
     home_strength = home_data.get("strength", 0)
     away_strength = away_data.get("strength", 0)
     predicted_home, predicted_away = predict_score(home_strength, away_strength)
+    new_credits = deduct_credit(current_user["id"])
     return {
         "home_team": home_data,
         "away_team": away_data,
@@ -212,6 +304,7 @@ async def predict(req: PredictRequest):
             "away_score": predicted_away,
             "score_str": f"{predicted_home}-{predicted_away}",
         },
+        "credits_remaining": new_credits,
     }
 
 
