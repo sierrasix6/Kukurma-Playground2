@@ -412,7 +412,7 @@ export default function ChatPage() {
         )}
 
         {/* Input */}
-        <div className="px-4 pb-4 pt-2 flex-shrink-0 border-t border-border bg-background">
+        <div className="px-4 pb-1 pt-2 flex-shrink-0 border-t border-border bg-background">
           <div className="max-w-2xl mx-auto">
             <div className={`flex items-end gap-2 bg-card border rounded-2xl px-4 py-2 transition-colors ${
               creditsExhausted ? "border-yellow-500/30 opacity-60" : "border-border focus-within:border-primary/50"
@@ -440,7 +440,8 @@ export default function ChatPage() {
               </button>
             </div>
             <p className="text-[10px] text-muted-foreground text-center mt-1.5">
-              Tekan Enter untuk kirim &bull; Shift+Enter untuk baris baru
+              Tekan Enter untuk kirim &bull; Shift+Enter untuk baris baru &bull;{" "}
+              <span className="text-primary/50 font-medium">@KyonariDev</span>
             </p>
           </div>
         </div>

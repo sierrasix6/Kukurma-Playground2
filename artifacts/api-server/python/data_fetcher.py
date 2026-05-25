@@ -416,6 +416,7 @@ def _get_h2h(team1: dict, team2: dict) -> list[dict]:
 
 
 def calculate_strength(results: list[dict]) -> int:
+    """Legacy simple strength — kept for compatibility."""
     strength = 0
     for r in results:
         if r["outcome"] == "W":
@@ -425,26 +426,143 @@ def calculate_strength(results: list[dict]) -> int:
     return strength
 
 
-def predict_score(strength_a: int, strength_b: int) -> tuple[int, int]:
-    diff = strength_a - strength_b
-    if diff >= 9:
-        return 3, 0
-    elif diff >= 6:
-        return 3, 1
-    elif diff >= 3:
-        return 2, 1
-    elif diff >= 1:
-        return 1, 0
-    elif diff == 0:
-        return 1, 1
-    elif diff >= -2:
-        return 0, 1
-    elif diff >= -5:
-        return 1, 2
-    elif diff >= -8:
-        return 1, 3
+def calculate_team_stats(results: list[dict]) -> dict:
+    """Rich stats used by the smart prediction engine."""
+    if not results:
+        return {
+            "weighted_points": 0.0,
+            "avg_scored": 1.2,
+            "avg_conceded": 1.2,
+            "win_streak": 0,
+            "loss_streak": 0,
+            "clean_sheets": 0,
+            "failed_to_score": 0,
+            "form_label": "Tidak ada data",
+            "form_icons": [],
+            "goal_diff": 0,
+        }
+
+    position_weights = [3.0, 2.5, 2.0, 1.5, 1.0]
+    total_scored = 0
+    total_conceded = 0
+    weighted_pts = 0.0
+    total_weight = 0.0
+    win_streak = 0
+    loss_streak = 0
+    clean_sheets = 0
+    failed_to_score = 0
+    form_icons = []
+
+    icon_map = {"W": "W", "D": "D", "L": "L"}
+
+    for i, r in enumerate(results):
+        w = position_weights[i] if i < len(position_weights) else 1.0
+        try:
+            parts = r["score"].split("-")
+            scored = int(parts[0])
+            conceded = int(parts[1])
+        except Exception:
+            scored, conceded = 0, 0
+
+        total_scored += scored
+        total_conceded += conceded
+        if scored == 0:
+            failed_to_score += 1
+        if conceded == 0:
+            clean_sheets += 1
+
+        form_icons.append(icon_map.get(r["outcome"], "?"))
+
+        if r["outcome"] == "W":
+            weighted_pts += 3 * w
+            if i == win_streak:
+                win_streak += 1
+        elif r["outcome"] == "D":
+            weighted_pts += 1 * w
+        else:
+            if i == loss_streak:
+                loss_streak += 1
+
+        total_weight += w
+
+    n = len(results)
+    avg_scored = total_scored / n
+    avg_conceded = total_conceded / n
+
+    recent = results[:3]
+    recent_pts = sum(
+        3 if r["outcome"] == "W" else 1 if r["outcome"] == "D" else 0
+        for r in recent
+    )
+    if recent_pts >= 7:
+        form_label = "Forma Luar Biasa"
+    elif recent_pts >= 5:
+        form_label = "Forma Bagus"
+    elif recent_pts >= 3:
+        form_label = "Forma Sedang"
+    elif recent_pts >= 1:
+        form_label = "Forma Kurang Baik"
     else:
-        return 0, 3
+        form_label = "Forma Sangat Buruk"
+
+    return {
+        "weighted_points": round(weighted_pts, 1),
+        "avg_scored": round(avg_scored, 2),
+        "avg_conceded": round(avg_conceded, 2),
+        "win_streak": win_streak,
+        "loss_streak": loss_streak,
+        "clean_sheets": clean_sheets,
+        "failed_to_score": failed_to_score,
+        "form_label": form_label,
+        "form_icons": form_icons,
+        "goal_diff": total_scored - total_conceded,
+    }
+
+
+def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = True) -> tuple[int, int]:
+    """
+    Smart expected-goals model.
+    Uses attack/defense rates with home advantage and streak bonus.
+    Falls back gracefully if stats are minimal.
+    """
+    LEAGUE_AVG = 1.35  # typical goals per team per game across top leagues
+    HA = 1.15 if home_advantage else 1.0
+
+    ha_scored = home_stats.get("avg_scored", LEAGUE_AVG)
+    ha_conceded = home_stats.get("avg_conceded", LEAGUE_AVG)
+    aa_scored = away_stats.get("avg_scored", LEAGUE_AVG)
+    aa_conceded = away_stats.get("avg_conceded", LEAGUE_AVG)
+
+    # Dixon-Coles-inspired xG:
+    # home_xg = (home_attack_rate × away_defense_rate / LEAGUE_AVG²) × LEAGUE_AVG × HA
+    home_xg = (ha_scored / LEAGUE_AVG) * (aa_conceded / LEAGUE_AVG) * LEAGUE_AVG * HA
+    away_xg = (aa_scored / LEAGUE_AVG) * (ha_conceded / LEAGUE_AVG) * LEAGUE_AVG / HA
+
+    # Win streak momentum bonus
+    if home_stats.get("win_streak", 0) >= 3:
+        home_xg *= 1.12
+    if away_stats.get("win_streak", 0) >= 3:
+        away_xg *= 1.12
+
+    # Clean sheet ability — tighten defense
+    if home_stats.get("clean_sheets", 0) >= 3:
+        away_xg *= 0.85
+    if away_stats.get("clean_sheets", 0) >= 3:
+        home_xg *= 0.85
+
+    # Weighted points strength adjustment
+    home_wp = home_stats.get("weighted_points", 10.0)
+    away_wp = away_stats.get("weighted_points", 10.0)
+    total_wp = home_wp + away_wp or 1
+    wp_ratio = (home_wp - away_wp) / total_wp  # -1 to +1
+    home_xg += wp_ratio * 0.3
+    away_xg -= wp_ratio * 0.3
+
+    # Clamp to [0, 5]
+    home_xg = max(0.0, min(5.0, home_xg))
+    away_xg = max(0.0, min(5.0, away_xg))
+
+    return round(home_xg), round(away_xg)
 
 
 def fetch_team_data(team_name: str) -> dict:
@@ -455,11 +573,13 @@ def fetch_team_data(team_name: str) -> dict:
             "name": _resolve_name(team_name),
             "last_results": [],
             "strength": 0,
+            "stats": calculate_team_stats([]),
         }
     last_results = _get_last_results(
         team_info["id"], team_info["name"], team_info["league_slug"]
     )
     strength = calculate_strength(last_results)
+    stats = calculate_team_stats(last_results)
     return {
         "found": True,
         "name": team_info["name"],
@@ -469,6 +589,7 @@ def fetch_team_data(team_name: str) -> dict:
         "badge": team_info["logo"],
         "last_results": last_results,
         "strength": strength,
+        "stats": stats,
     }
 
 

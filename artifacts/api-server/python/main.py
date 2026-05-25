@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from nlp_extractor import extract_teams_and_date
-from data_fetcher import fetch_team_data, get_h2h, predict_score
+from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats
 from database import init_db, get_user_by_username, get_user_by_id, create_user, verify_password, deduct_credit, UNLIMITED
 from auth import create_token, decode_token
 
@@ -101,7 +101,49 @@ async def health():
     return {"status": "ok"}
 
 
-# ---------- Prediction logic ----------
+# ---------- Smart prediction logic ----------
+
+def _form_bar(icons: list[str]) -> str:
+    symbol = {"W": "▰", "D": "▱", "L": "▱"}
+    color_text = {"W": "M", "D": "S", "L": "K"}
+    return " ".join(color_text.get(i, "?") for i in icons)
+
+
+def _h2h_record(h2h: list[dict], home_name: str) -> tuple[int, int, int]:
+    hw, aw, draws = 0, 0, 0
+    for m in h2h:
+        try:
+            hs, as_ = map(int, m["score"].split("-"))
+        except Exception:
+            continue
+        if m["home"].lower() == home_name.lower():
+            if hs > as_:
+                hw += 1
+            elif hs < as_:
+                aw += 1
+            else:
+                draws += 1
+        else:
+            if as_ > hs:
+                hw += 1
+            elif as_ < hs:
+                aw += 1
+            else:
+                draws += 1
+    return hw, aw, draws
+
+
+def _confidence_label(home_xg: int, away_xg: int, home_stats: dict, away_stats: dict) -> str:
+    both_have_data = home_stats.get("weighted_points", 0) > 0 and away_stats.get("weighted_points", 0) > 0
+    diff = abs(home_stats.get("weighted_points", 0) - away_stats.get("weighted_points", 0))
+    if not both_have_data:
+        return "Rendah"
+    if diff >= 8:
+        return "Tinggi"
+    if diff >= 4:
+        return "Sedang"
+    return "Sedang"
+
 
 def build_reasoning(
     home_name: str,
@@ -109,57 +151,116 @@ def build_reasoning(
     home_results: list[dict],
     away_results: list[dict],
     h2h: list[dict],
-    home_strength: int,
-    away_strength: int,
+    home_stats: dict,
+    away_stats: dict,
     predicted_home: int,
     predicted_away: int,
 ) -> str:
     lines = []
 
+    # ── Form terkini ──────────────────────────────────────────────
+    lines.append("**📊 Analisis Form Terkini:**")
+
     if home_results:
-        last = home_results[0]
-        outcome_word = {"W": "menang", "D": "seri", "L": "kalah"}.get(last["outcome"], "bermain")
+        form_str = _form_bar(home_stats.get("form_icons", []))
         lines.append(
-            f"{home_name} terakhir {outcome_word} {last['score']} melawan {last['opponent']} ({last['date']})."
+            f"{home_name}: [{form_str}] — {home_stats['form_label']}\n"
+            f"  Rata-rata gol: {home_stats['avg_scored']} dicetak / {home_stats['avg_conceded']} kebobolan per laga"
         )
-
-    wins_h = sum(1 for r in home_results if r["outcome"] == "W")
-    draws_h = sum(1 for r in home_results if r["outcome"] == "D")
-    losses_h = sum(1 for r in home_results if r["outcome"] == "L")
-    if home_results:
-        lines.append(
-            f"Dalam {len(home_results)} laga terakhir, {home_name}: {wins_h}M {draws_h}S {losses_h}K (kekuatan: {home_strength} poin)."
-        )
-
-    wins_a = sum(1 for r in away_results if r["outcome"] == "W")
-    draws_a = sum(1 for r in away_results if r["outcome"] == "D")
-    losses_a = sum(1 for r in away_results if r["outcome"] == "L")
-    if away_results:
-        lines.append(
-            f"Dalam {len(away_results)} laga terakhir, {away_name}: {wins_a}M {draws_a}S {losses_a}K (kekuatan: {away_strength} poin)."
-        )
-
-    if h2h:
-        h = h2h[0]
-        lines.append(
-            f"Head-to-head terakhir: {h['home']} vs {h['away']} skor {h['score']} ({h['date']})."
-        )
-
-    diff = home_strength - away_strength
-    if diff > 5:
-        lines.append(f"{home_name} jauh lebih kuat saat ini (selisih {diff} poin), diprediksi menang cukup telak.")
-    elif diff > 0:
-        lines.append(f"{home_name} sedikit lebih unggul (selisih {diff} poin), diprediksi menang tipis.")
-    elif diff == 0:
-        lines.append("Kedua tim setara kekuatannya, pertandingan diprediksi ketat.")
-    elif diff > -5:
-        lines.append(f"{away_name} sedikit lebih kuat (selisih {abs(diff)} poin), diprediksi menang tipis.")
     else:
-        lines.append(f"{away_name} jauh lebih kuat saat ini (selisih {abs(diff)} poin).")
+        lines.append(f"{home_name}: Data tidak tersedia")
 
-    lines.append(
-        f"\nPrediksi Skor: {home_name} {predicted_home} - {predicted_away} {away_name}"
-    )
+    if away_results:
+        form_str = _form_bar(away_stats.get("form_icons", []))
+        lines.append(
+            f"{away_name}: [{form_str}] — {away_stats['form_label']}\n"
+            f"  Rata-rata gol: {away_stats['avg_scored']} dicetak / {away_stats['avg_conceded']} kebobolan per laga"
+        )
+    else:
+        lines.append(f"{away_name}: Data tidak tersedia")
+
+    # ── Insight kunci ─────────────────────────────────────────────
+    insights = []
+
+    if home_stats.get("win_streak", 0) >= 3:
+        insights.append(f"🔥 {home_name} tengah dalam tren kemenangan {home_stats['win_streak']} laga beruntun!")
+    if away_stats.get("win_streak", 0) >= 3:
+        insights.append(f"🔥 {away_name} tengah dalam tren kemenangan {away_stats['win_streak']} laga beruntun!")
+
+    if home_stats.get("loss_streak", 0) >= 3:
+        insights.append(f"📉 {home_name} sedang dalam tren kekalahan {home_stats['loss_streak']} laga beruntun.")
+    if away_stats.get("loss_streak", 0) >= 3:
+        insights.append(f"📉 {away_name} sedang dalam tren kekalahan {away_stats['loss_streak']} laga beruntun.")
+
+    if home_stats.get("clean_sheets", 0) >= 3:
+        insights.append(f"🛡️ {home_name} memiliki pertahanan sangat solid ({home_stats['clean_sheets']} clean sheet dari {len(home_results)} laga).")
+    if away_stats.get("clean_sheets", 0) >= 3:
+        insights.append(f"🛡️ {away_name} memiliki pertahanan sangat solid ({away_stats['clean_sheets']} clean sheet dari {len(away_results)} laga).")
+
+    ha_scored = home_stats.get("avg_scored", 0)
+    aa_scored = away_stats.get("avg_scored", 0)
+    ha_conceded = home_stats.get("avg_conceded", 99)
+    aa_conceded = away_stats.get("avg_conceded", 99)
+
+    if ha_scored > aa_scored + 0.6:
+        insights.append(f"⚔️ {home_name} lebih produktif di depan ({ha_scored} vs {aa_scored} gol/game).")
+    elif aa_scored > ha_scored + 0.6:
+        insights.append(f"⚔️ {away_name} lebih produktif di depan ({aa_scored} vs {ha_scored} gol/game).")
+
+    if ha_conceded < aa_conceded - 0.5:
+        insights.append(f"🔒 Pertahanan {home_name} lebih rapat ({ha_conceded} vs {aa_conceded} gol kemasukan/game).")
+    elif aa_conceded < ha_conceded - 0.5:
+        insights.append(f"🔒 Pertahanan {away_name} lebih rapat ({aa_conceded} vs {ha_conceded} gol kemasukan/game).")
+
+    if home_stats.get("failed_to_score", 0) >= 3:
+        insights.append(f"😬 {home_name} kesulitan mencetak gol — gagal skor di {home_stats['failed_to_score']} dari {len(home_results)} laga terakhir.")
+    if away_stats.get("failed_to_score", 0) >= 3:
+        insights.append(f"😬 {away_name} kesulitan mencetak gol — gagal skor di {away_stats['failed_to_score']} dari {len(away_results)} laga terakhir.")
+
+    if insights:
+        lines.append("\n**⚡ Insight Kunci:**")
+        lines.extend(insights)
+
+    # ── Head-to-head ─────────────────────────────────────────────
+    if h2h:
+        hw, aw, draws = _h2h_record(h2h, home_name)
+        lines.append(f"\n**🆚 Head-to-Head ({len(h2h)} pertemuan terakhir):**")
+        lines.append(f"{home_name} {hw} — {draws} imbang — {aw} {away_name}")
+        last = h2h[0]
+        lines.append(f"Pertemuan terakhir: {last['home']} vs {last['away']}  {last['score']}  ({last['date']})")
+
+        # H2H trend adjustment note
+        if hw > aw + 1:
+            lines.append(f"Secara historis {home_name} dominan dalam head-to-head ini.")
+        elif aw > hw + 1:
+            lines.append(f"Secara historis {away_name} dominan dalam head-to-head ini.")
+        else:
+            lines.append("Head-to-head kedua tim sangat seimbang.")
+
+    # ── Perbandingan kekuatan ─────────────────────────────────────
+    home_wp = home_stats.get("weighted_points", 0)
+    away_wp = away_stats.get("weighted_points", 0)
+    lines.append(f"\n**📈 Skor Kekuatan (Weighted Form):**")
+    lines.append(f"{home_name}: {home_wp} poin  |  {away_name}: {away_wp} poin")
+
+    wp_diff = home_wp - away_wp
+    if wp_diff > 8:
+        verdict = f"{home_name} jauh lebih dominan saat ini."
+    elif wp_diff > 3:
+        verdict = f"{home_name} unggul tipis dalam form terkini."
+    elif wp_diff > -3:
+        verdict = "Kedua tim dalam kondisi yang sangat seimbang — laga akan sangat kompetitif."
+    elif wp_diff > -8:
+        verdict = f"{away_name} sedikit lebih baik dalam form terkini."
+    else:
+        verdict = f"{away_name} jauh lebih dominan saat ini."
+    lines.append(verdict)
+
+    # ── Confidence & verdict ──────────────────────────────────────
+    confidence = _confidence_label(predicted_home, predicted_away, home_stats, away_stats)
+    lines.append(f"\n**🎯 Prediksi Skor: {home_name} {predicted_home} - {predicted_away} {away_name}**")
+    lines.append(f"Tingkat keyakinan prediksi: **{confidence}**")
+    lines.append("_(Prediksi berbasis model Expected Goals dengan analisis form, pertahanan, keunggulan kandang, dan momentum tren.)_")
 
     return "\n".join(lines)
 
@@ -208,9 +309,9 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
 
     h2h = get_h2h(home_data, away_data)
 
-    home_strength = home_data.get("strength", 0)
-    away_strength = away_data.get("strength", 0)
-    predicted_home, predicted_away = predict_score(home_strength, away_strength)
+    home_stats = home_data.get("stats", calculate_team_stats(home_data.get("last_results", [])))
+    away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
+    predicted_home, predicted_away = predict_score(home_stats, away_stats)
 
     actual_home = home_data.get("name", home_name)
     actual_away = away_data.get("name", away_name)
@@ -239,7 +340,8 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
         home_data.get("last_results", []),
         away_data.get("last_results", []),
         h2h,
-        home_strength, away_strength,
+        home_stats,
+        away_stats,
         predicted_home, predicted_away,
     )
 
@@ -248,15 +350,17 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
             "name": actual_home,
             "league": home_data.get("league", ""),
             "badge": home_data.get("badge", ""),
-            "strength": home_strength,
+            "strength": home_stats.get("weighted_points", 0),
             "last_results": home_data.get("last_results", []),
+            "stats": home_stats,
         },
         "away_team": {
             "name": actual_away,
             "league": away_data.get("league", ""),
             "badge": away_data.get("badge", ""),
-            "strength": away_strength,
+            "strength": away_stats.get("weighted_points", 0),
             "last_results": away_data.get("last_results", []),
+            "stats": away_stats,
         },
         "h2h": h2h,
         "prediction": {
@@ -291,9 +395,9 @@ async def predict(req: PredictRequest, current_user: dict = Depends(get_current_
     home_data = fetch_team_data(req.home_team)
     away_data = fetch_team_data(req.away_team)
     h2h = get_h2h(home_data, away_data)
-    home_strength = home_data.get("strength", 0)
-    away_strength = away_data.get("strength", 0)
-    predicted_home, predicted_away = predict_score(home_strength, away_strength)
+    home_stats = home_data.get("stats", calculate_team_stats(home_data.get("last_results", [])))
+    away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
+    predicted_home, predicted_away = predict_score(home_stats, away_stats)
     new_credits = deduct_credit(current_user["id"])
     return {
         "home_team": home_data,
