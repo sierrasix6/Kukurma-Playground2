@@ -527,11 +527,15 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     """
     LEAGUE_AVG = 1.35  # typical goals per team per game across top leagues
     HA = 1.15 if home_advantage else 1.0
+    # Minimum floor for defense stats so a perfect defense (0.0) doesn't
+    # collapse the opponent's xG to zero — a great defense is modelled as
+    # still conceding ~0.30 on average (i.e. "tight but not impenetrable").
+    DEF_FLOOR = 0.30
 
     ha_scored = home_stats.get("avg_scored", LEAGUE_AVG)
-    ha_conceded = home_stats.get("avg_conceded", LEAGUE_AVG)
+    ha_conceded = max(home_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
     aa_scored = away_stats.get("avg_scored", LEAGUE_AVG)
-    aa_conceded = away_stats.get("avg_conceded", LEAGUE_AVG)
+    aa_conceded = max(away_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
 
     # Dixon-Coles-inspired xG:
     # home_xg = (home_attack_rate × away_defense_rate / LEAGUE_AVG²) × LEAGUE_AVG × HA
@@ -544,19 +548,21 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     if away_stats.get("win_streak", 0) >= 3:
         away_xg *= 1.12
 
-    # Clean sheet ability — tighten defense
+    # Clean sheet ability — tighten defense (soft factor, not zeroing-out)
     if home_stats.get("clean_sheets", 0) >= 3:
-        away_xg *= 0.85
+        away_xg *= 0.88
     if away_stats.get("clean_sheets", 0) >= 3:
-        home_xg *= 0.85
+        home_xg *= 0.88
 
-    # Weighted points strength adjustment
+    # Weighted points strength adjustment — dominant anchor
+    # This ensures that when one team is clearly dominant (e.g. Portugal 21 vs
+    # Congo 9), the form difference overrides edge cases in the xG formula.
     home_wp = home_stats.get("weighted_points", 10.0)
     away_wp = away_stats.get("weighted_points", 10.0)
     total_wp = home_wp + away_wp or 1
-    wp_ratio = (home_wp - away_wp) / total_wp  # -1 to +1
-    home_xg += wp_ratio * 0.3
-    away_xg -= wp_ratio * 0.3
+    wp_ratio = (home_wp - away_wp) / total_wp  # range −1 to +1
+    home_xg += wp_ratio * 0.65
+    away_xg -= wp_ratio * 0.65
 
     # Clamp to [0, 5]
     home_xg = max(0.0, min(5.0, home_xg))
