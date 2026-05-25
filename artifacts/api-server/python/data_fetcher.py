@@ -527,14 +527,14 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     """
     LEAGUE_AVG = 1.35  # typical goals per team per game across top leagues
     HA = 1.15 if home_advantage else 1.0
-    # Minimum floor for defense stats so a perfect defense (0.0) doesn't
-    # collapse the opponent's xG to zero — a great defense is modelled as
-    # still conceding ~0.30 on average (i.e. "tight but not impenetrable").
+    # Defense floor: even the best defense isn't impenetrable; prevents xG = 0
     DEF_FLOOR = 0.30
+    # Attack floor: even the most toothless team has some threat
+    ATK_FLOOR = 0.40
 
-    ha_scored = home_stats.get("avg_scored", LEAGUE_AVG)
+    ha_scored = max(home_stats.get("avg_scored", LEAGUE_AVG), ATK_FLOOR)
     ha_conceded = max(home_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
-    aa_scored = away_stats.get("avg_scored", LEAGUE_AVG)
+    aa_scored = max(away_stats.get("avg_scored", LEAGUE_AVG), ATK_FLOOR)
     aa_conceded = max(away_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
 
     # Dixon-Coles-inspired xG:
@@ -548,15 +548,14 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     if away_stats.get("win_streak", 0) >= 3:
         away_xg *= 1.12
 
-    # Clean sheet ability — tighten defense (soft factor, not zeroing-out)
+    # Clean sheet ability — soft reduction (never zero-out the opponent)
     if home_stats.get("clean_sheets", 0) >= 3:
         away_xg *= 0.88
     if away_stats.get("clean_sheets", 0) >= 3:
         home_xg *= 0.88
 
-    # Weighted points strength adjustment — dominant anchor
-    # This ensures that when one team is clearly dominant (e.g. Portugal 21 vs
-    # Congo 9), the form difference overrides edge cases in the xG formula.
+    # Weighted points strength anchor — ensures dominant team wins even in
+    # extreme edge cases (both defensive, small samples, etc.)
     home_wp = home_stats.get("weighted_points", 10.0)
     away_wp = away_stats.get("weighted_points", 10.0)
     total_wp = home_wp + away_wp or 1
@@ -568,7 +567,19 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     home_xg = max(0.0, min(5.0, home_xg))
     away_xg = max(0.0, min(5.0, away_xg))
 
-    return round(home_xg), round(away_xg)
+    predicted_home = round(home_xg)
+    predicted_away = round(away_xg)
+
+    # Tiebreaker: 0-0 is only valid when teams are genuinely equal AND defensive.
+    # If one team has a clear form advantage, award them at least 1 goal.
+    if predicted_home == 0 and predicted_away == 0:
+        if home_wp > away_wp + 2:
+            predicted_home = 1
+        elif away_wp > home_wp + 2:
+            predicted_away = 1
+        # else: true 0-0 — both teams similarly matched and defensive
+
+    return predicted_home, predicted_away
 
 
 def fetch_team_data(team_name: str) -> dict:
