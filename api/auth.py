@@ -1,8 +1,19 @@
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 
-SECRET_KEY = os.environ.get("SESSION_SECRET", "kukurma-fallback-secret-key-2026")
+# Ensure a secure session secret is used in production / hosting environment
+SESSION_SECRET = os.environ.get("SESSION_SECRET")
+if not SESSION_SECRET:
+    # If running on Vercel or in production, generate a secure random secret dynamically
+    if os.environ.get("VERCEL") or os.environ.get("NODE_ENV") == "production":
+        SECRET_KEY = secrets.token_hex(32)
+    else:
+        SECRET_KEY = "kukurma-fallback-secret-key-2026"
+else:
+    SECRET_KEY = SESSION_SECRET
+
 ALGORITHM = "HS256"
 EXPIRE_DAYS = 7
 

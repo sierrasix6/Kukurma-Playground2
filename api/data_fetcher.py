@@ -1,7 +1,42 @@
 import requests
 from typing import Optional
+import os
+import json
+import re
 
-HEADERS = {"User-Agent": "BolaMistisAI/1.0 (football predictor)"}
+CACHE_PATH = os.path.join(os.path.dirname(__file__), "team_index_cache.json")
+
+def safe_int_score(score_raw) -> int:
+    """Safely parse score from ESPN API payload to prevent ValueError."""
+    if isinstance(score_raw, dict):
+        val = score_raw.get("value")
+        if val is None:
+            return 0
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            try:
+                return int(float(val))
+            except (ValueError, TypeError):
+                # Try to extract numbers
+                digits = "".join(c for c in str(val) if c.isdigit())
+                return int(digits) if digits else 0
+    else:
+        if score_raw is None:
+            return 0
+        score_str = str(score_raw).strip()
+        try:
+            return int(score_str)
+        except (ValueError, TypeError):
+            try:
+                return int(float(score_str))
+            except (ValueError, TypeError):
+                match = re.search(r'\d+', score_str)
+                if match:
+                    return int(match.group())
+                return 0
+
+HEADERS = {"User-Agent": "KyonayrPlayground/1.0 (football predictor)"}
 
 ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 
@@ -142,6 +177,19 @@ def _build_index(force: bool = False) -> None:
     global _TEAM_INDEX, _LEAGUE_INDEX
     if _TEAM_INDEX and not force:
         return
+
+    # Try loading from cache file
+    if not force and os.path.exists(CACHE_PATH):
+        try:
+            with open(CACHE_PATH, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+                _TEAM_INDEX = cached.get("team_index", {})
+                _LEAGUE_INDEX = cached.get("league_index", {})
+                if _TEAM_INDEX:
+                    return
+        except Exception:
+            pass
+
     for slug, league_name in LEAGUES:
         try:
             url = f"{ESPN_BASE}/{slug}/teams"
@@ -173,6 +221,15 @@ def _build_index(force: bool = False) -> None:
             _LEAGUE_INDEX[slug] = teams_in_league
         except Exception:
             continue
+
+    # Save to cache file
+    if _TEAM_INDEX:
+        try:
+            with open(CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump({"team_index": _TEAM_INDEX, "league_index": _LEAGUE_INDEX}, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
 
 
 def _search_espn(query: str) -> Optional[dict]:
@@ -330,14 +387,9 @@ def _get_last_results(team_id: str, team_name: str, league_slug: str, limit: int
 
                 home_score_raw = home_comp.get("score", {})
                 away_score_raw = away_comp.get("score", {})
-                if isinstance(home_score_raw, dict):
-                    home_score = int(home_score_raw.get("value", 0) or 0)
-                else:
-                    home_score = int(home_score_raw or 0)
-                if isinstance(away_score_raw, dict):
-                    away_score = int(away_score_raw.get("value", 0) or 0)
-                else:
-                    away_score = int(away_score_raw or 0)
+                home_score = safe_int_score(home_score_raw)
+                away_score = safe_int_score(away_score_raw)
+
 
                 is_home = (
                     home_name.lower() == team_name.lower()
@@ -401,8 +453,9 @@ def _get_h2h(team1: dict, team2: dict) -> list[dict]:
                     away_comp = next((c for c in competitors if c.get("homeAway") == "away"), {})
                     hs = home_comp.get("score", {})
                     as_ = away_comp.get("score", {})
-                    hs = int(hs.get("value", 0) if isinstance(hs, dict) else (hs or 0))
-                    as_ = int(as_.get("value", 0) if isinstance(as_, dict) else (as_ or 0))
+                    hs = safe_int_score(hs)
+                    as_ = safe_int_score(as_)
+
                     h2h.append({
                         "date": event.get("date", "")[:10],
                         "home": home_comp.get("team", {}).get("displayName", ""),
@@ -433,6 +486,10 @@ def calculate_team_stats(results: list[dict]) -> dict:
             "weighted_points": 0.0,
             "avg_scored": 1.2,
             "avg_conceded": 1.2,
+            "home_avg_scored": 1.2,
+            "home_avg_conceded": 1.2,
+            "away_avg_scored": 1.2,
+            "away_avg_conceded": 1.2,
             "win_streak": 0,
             "loss_streak": 0,
             "clean_sheets": 0,
@@ -445,6 +502,13 @@ def calculate_team_stats(results: list[dict]) -> dict:
     position_weights = [3.0, 2.5, 2.0, 1.5, 1.0]
     total_scored = 0
     total_conceded = 0
+    home_scored = 0
+    home_conceded = 0
+    home_count = 0
+    away_scored = 0
+    away_conceded = 0
+    away_count = 0
+
     weighted_pts = 0.0
     total_weight = 0.0
     win_streak = 0
@@ -466,6 +530,16 @@ def calculate_team_stats(results: list[dict]) -> dict:
 
         total_scored += scored
         total_conceded += conceded
+
+        if r.get("venue") == "home":
+            home_scored += scored
+            home_conceded += conceded
+            home_count += 1
+        elif r.get("venue") == "away":
+            away_scored += scored
+            away_conceded += conceded
+            away_count += 1
+
         if scored == 0:
             failed_to_score += 1
         if conceded == 0:
@@ -489,6 +563,11 @@ def calculate_team_stats(results: list[dict]) -> dict:
     avg_scored = total_scored / n
     avg_conceded = total_conceded / n
 
+    home_avg_scored = home_scored / home_count if home_count > 0 else avg_scored
+    home_avg_conceded = home_conceded / home_count if home_count > 0 else avg_conceded
+    away_avg_scored = away_scored / away_count if away_count > 0 else avg_scored
+    away_avg_conceded = away_conceded / away_count if away_count > 0 else avg_conceded
+
     recent = results[:3]
     recent_pts = sum(
         3 if r["outcome"] == "W" else 1 if r["outcome"] == "D" else 0
@@ -509,6 +588,10 @@ def calculate_team_stats(results: list[dict]) -> dict:
         "weighted_points": round(weighted_pts, 1),
         "avg_scored": round(avg_scored, 2),
         "avg_conceded": round(avg_conceded, 2),
+        "home_avg_scored": round(home_avg_scored, 2),
+        "home_avg_conceded": round(home_avg_conceded, 2),
+        "away_avg_scored": round(away_avg_scored, 2),
+        "away_avg_conceded": round(away_avg_conceded, 2),
         "win_streak": win_streak,
         "loss_streak": loss_streak,
         "clean_sheets": clean_sheets,
@@ -519,65 +602,120 @@ def calculate_team_stats(results: list[dict]) -> dict:
     }
 
 
-def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = True) -> tuple[int, int]:
+def poisson_probability(lmbda: float, k: int) -> float:
+    """Calculates Poisson probability for k events with mean lmbda."""
+    if lmbda <= 0:
+        return 1.0 if k == 0 else 0.0
+    import math
+    try:
+        return (lmbda ** k * math.exp(-lmbda)) / math.factorial(k)
+    except Exception:
+        return 0.0
+
+
+def find_most_probable_score(home_xg: float, away_xg: float) -> tuple[int, int]:
+    """Calculates the 6x6 score probability matrix and returns the mode scoreline."""
+    best_score = (0, 0)
+    max_prob = -1.0
+    for h in range(6):
+        for a in range(6):
+            prob = poisson_probability(home_xg, h) * poisson_probability(away_xg, a)
+            if prob > max_prob:
+                max_prob = prob
+                best_score = (h, a)
+    return best_score
+
+
+def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = True, h2h: list[dict] = None) -> tuple[int, int]:
     """
-    Smart expected-goals model.
-    Uses attack/defense rates with home advantage and streak bonus.
-    Falls back gracefully if stats are minimal.
+    Genius expected-goals model using Poisson probability modes,
+    venue-specific stats (home/away splits), and H2H goal rate blending.
     """
     LEAGUE_AVG = 1.35  # typical goals per team per game across top leagues
     HA = 1.15 if home_advantage else 1.0
-    # Defense floor: even the best defense isn't impenetrable; prevents xG = 0
     DEF_FLOOR = 0.30
-    # Attack floor: even the most toothless team has some threat
     ATK_FLOOR = 0.40
 
-    ha_scored = max(home_stats.get("avg_scored", LEAGUE_AVG), ATK_FLOOR)
-    ha_conceded = max(home_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
-    aa_scored = max(away_stats.get("avg_scored", LEAGUE_AVG), ATK_FLOOR)
-    aa_conceded = max(away_stats.get("avg_conceded", LEAGUE_AVG), DEF_FLOOR)
+    # 1. Use venue specific averages if available (blend 60% overall, 40% venue-specific)
+    h_scored_base = home_stats.get("home_avg_scored", home_stats.get("avg_scored", LEAGUE_AVG))
+    h_conceded_base = home_stats.get("home_avg_conceded", home_stats.get("avg_conceded", LEAGUE_AVG))
+    a_scored_base = away_stats.get("away_avg_scored", away_stats.get("avg_scored", LEAGUE_AVG))
+    a_conceded_base = away_stats.get("away_avg_conceded", away_stats.get("avg_conceded", LEAGUE_AVG))
 
-    # Dixon-Coles-inspired xG:
-    # home_xg = (home_attack_rate × away_defense_rate / LEAGUE_AVG²) × LEAGUE_AVG × HA
+    ha_scored = max(0.6 * home_stats.get("avg_scored", LEAGUE_AVG) + 0.4 * h_scored_base, ATK_FLOOR)
+    ha_conceded = max(0.6 * home_stats.get("avg_conceded", LEAGUE_AVG) + 0.4 * h_conceded_base, DEF_FLOOR)
+    aa_scored = max(0.6 * away_stats.get("avg_scored", LEAGUE_AVG) + 0.4 * a_scored_base, ATK_FLOOR)
+    aa_conceded = max(0.6 * away_stats.get("avg_conceded", LEAGUE_AVG) + 0.4 * a_conceded_base, DEF_FLOOR)
+
+    # 2. Dixon-Coles-inspired base xG
     home_xg = (ha_scored / LEAGUE_AVG) * (aa_conceded / LEAGUE_AVG) * LEAGUE_AVG * HA
     away_xg = (aa_scored / LEAGUE_AVG) * (ha_conceded / LEAGUE_AVG) * LEAGUE_AVG / HA
 
-    # Win streak momentum bonus
+    # 3. Blending H2H direct matchup history (20% weight)
+    if h2h:
+        h2h_home_goals = 0
+        h2h_away_goals = 0
+        valid_matches = 0
+        home_name = home_stats.get("name", "").lower()
+        away_name = away_stats.get("name", "").lower()
+        for m in h2h:
+            try:
+                parts = m["score"].split("-")
+                hs = int(parts[0])
+                as_ = int(parts[1])
+                m_home = m["home"].lower()
+                m_away = m["away"].lower()
+                
+                # Check match direction
+                if home_name and (home_name in m_home or m_home in home_name):
+                    h2h_home_goals += hs
+                    h2h_away_goals += as_
+                    valid_matches += 1
+                elif home_name and (home_name in m_away or m_away in home_name):
+                    h2h_home_goals += as_
+                    h2h_away_goals += hs
+                    valid_matches += 1
+            except Exception:
+                continue
+        if valid_matches > 0:
+            avg_h2h_home = h2h_home_goals / valid_matches
+            avg_h2h_away = h2h_away_goals / valid_matches
+            home_xg = 0.8 * home_xg + 0.2 * avg_h2h_home
+            away_xg = 0.8 * away_xg + 0.2 * avg_h2h_away
+
+    # 4. Win streak momentum bonus
     if home_stats.get("win_streak", 0) >= 3:
         home_xg *= 1.12
     if away_stats.get("win_streak", 0) >= 3:
         away_xg *= 1.12
 
-    # Clean sheet ability — soft reduction (never zero-out the opponent)
+    # 5. Clean sheet ability
     if home_stats.get("clean_sheets", 0) >= 3:
         away_xg *= 0.88
     if away_stats.get("clean_sheets", 0) >= 3:
         home_xg *= 0.88
 
-    # Weighted points strength anchor — ensures dominant team wins even in
-    # extreme edge cases (both defensive, small samples, etc.)
+    # 6. Weighted points strength anchor
     home_wp = home_stats.get("weighted_points", 10.0)
     away_wp = away_stats.get("weighted_points", 10.0)
     total_wp = home_wp + away_wp or 1
-    wp_ratio = (home_wp - away_wp) / total_wp  # range −1 to +1
+    wp_ratio = (home_wp - away_wp) / total_wp
     home_xg += wp_ratio * 0.65
     away_xg -= wp_ratio * 0.65
 
-    # Clamp to [0, 5]
+    # 7. Clamp to [0, 5]
     home_xg = max(0.0, min(5.0, home_xg))
     away_xg = max(0.0, min(5.0, away_xg))
 
-    predicted_home = round(home_xg)
-    predicted_away = round(away_xg)
+    # 8. Poisson distribution mode simulation
+    predicted_home, predicted_away = find_most_probable_score(home_xg, away_xg)
 
-    # Tiebreaker: 0-0 is only valid when teams are genuinely equal AND defensive.
-    # If one team has a clear form advantage, award them at least 1 goal.
+    # 9. Tiebreaker
     if predicted_home == 0 and predicted_away == 0:
-        if home_wp > away_wp + 2:
+        if home_wp > away_wp + 2.5:
             predicted_home = 1
-        elif away_wp > home_wp + 2:
+        elif away_wp > home_wp + 2.5:
             predicted_away = 1
-        # else: true 0-0 — both teams similarly matched and defensive
 
     return predicted_home, predicted_away
 
@@ -585,18 +723,20 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
 def fetch_team_data(team_name: str) -> dict:
     team_info = _find_team(team_name)
     if not team_info:
+        fallback_name = _resolve_name(team_name)
         return {
             "found": False,
-            "name": _resolve_name(team_name),
+            "name": fallback_name,
             "last_results": [],
             "strength": 0,
-            "stats": calculate_team_stats([]),
+            "stats": {**calculate_team_stats([]), "name": fallback_name},
         }
     last_results = _get_last_results(
         team_info["id"], team_info["name"], team_info["league_slug"]
     )
     strength = calculate_strength(last_results)
     stats = calculate_team_stats(last_results)
+    stats["name"] = team_info["name"]
     return {
         "found": True,
         "name": team_info["name"],

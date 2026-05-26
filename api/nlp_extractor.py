@@ -61,12 +61,24 @@ def extract_date(text: str) -> str:
     text_lower = text.lower()
     today = datetime.now()
 
+    # Preprocess to remove score-like patterns (e.g. "2-1" or "3-0" but NOT dates like "2-1-2026" or "25-12")
+    temp_text = text_lower
+    for match in re.finditer(r'\b(\d{1,2})\s*-\s*(\d{1,2})\b', text_lower):
+        start, end = match.span()
+        lookahead = text_lower[end:]
+        lookbehind = text_lower[:start]
+        is_three_part = re.match(r'^\s*-\s*\d{2,4}\b', lookahead) or re.search(r'\b\d{2,4}\s*-\s*$', lookbehind)
+        if not is_three_part:
+            d1, d2 = int(match.group(1)), int(match.group(2))
+            if d1 <= 9 and d2 <= 9:
+                temp_text = temp_text.replace(match.group(0), "")
+
     for pattern, days_ahead in DATE_PATTERNS.items():
-        if re.search(pattern, text_lower):
+        if re.search(pattern, temp_text):
             target = today + timedelta(days=days_ahead)
             return target.strftime("%Y-%m-%d")
 
-    date_re = re.search(r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?', text)
+    date_re = re.search(r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?', temp_text)
     if date_re:
         day, month = int(date_re.group(1)), int(date_re.group(2))
         year = int(date_re.group(3)) if date_re.group(3) else today.year
@@ -78,7 +90,7 @@ def extract_date(text: str) -> str:
             pass
 
     for month_name, month_num in MONTH_MAP.items():
-        month_re = re.search(rf'(\d{{1,2}})\s+{month_name}', text_lower)
+        month_re = re.search(rf'(\d{{1,2}})\s+{month_name}', temp_text)
         if month_re:
             day = int(month_re.group(1))
             try:
@@ -87,6 +99,7 @@ def extract_date(text: str) -> str:
                 pass
 
     return today.strftime("%Y-%m-%d")
+
 
 
 def clean_team_name(name: str) -> str:
@@ -111,10 +124,11 @@ def clean_team_name(name: str) -> str:
     ]
     for word in noise_words:
         name = re.sub(word, '', name, flags=re.IGNORECASE).strip()
-    # Strip standalone numbers (dates, years like 12, 2026)
     name = re.sub(r'\b\d{1,4}\b', '', name)
     name = re.sub(r'\s+', ' ', name).strip()
+    name = re.sub(r'^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$', '', name).strip()
     return name
+
 
 
 def extract_teams_and_date(user_message: str) -> dict:

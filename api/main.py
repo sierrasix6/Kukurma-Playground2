@@ -1,19 +1,39 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException
+import sys
+import time
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Ensure api directory is in Python path for serverless imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from nlp_extractor import extract_teams_and_date
 from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats
 from database import init_db, get_user_by_username, get_user_by_id, create_user, verify_password, deduct_credit, UNLIMITED
 from auth import create_token, decode_token
 
-app = FastAPI(title="Kukurma Playground API", root_path="/api")
+app = FastAPI(title="Kyonayr Playground API", root_path="/api")
+
+# CORS Origin Lockdowns
+ALLOWED_ORIGINS_ENV = os.environ.get("ALLOWED_ORIGINS")
+if ALLOWED_ORIGINS_ENV:
+    allow_origins = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",") if origin.strip()]
+else:
+    # Secure Vercel production default: restrict to local development and Vercel domains
+    if os.environ.get("VERCEL") or os.environ.get("NODE_ENV") == "production":
+        allow_origins = ["https://*.vercel.app"]
+    else:
+        allow_origins = ["*"]
+
+allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -23,24 +43,68 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 @app.on_event("startup")
 def startup():
+    # Dynamically initialize database tables (works for Postgres or SQLite)
     init_db()
 
 
-# ---------- Auth models ----------
+# ---------- Simple IP-Based Sliding-Window Rate Limiter ----------
+
+RATE_LIMIT_CACHE = {}
+RATE_LIMIT_WINDOW = 10  # seconds
+RATE_LIMIT_MAX_REQUESTS = 10  # max requests per window
+
+
+def check_rate_limit(request: Request, endpoint: str):
+    client_ip = request.headers.get("x-forwarded-for") or (request.client.host if request.client else None)
+    if not client_ip:
+        return
+    
+    current_time = time.time()
+    key = (client_ip, endpoint)
+    
+    if key not in RATE_LIMIT_CACHE:
+        RATE_LIMIT_CACHE[key] = []
+        
+    RATE_LIMIT_CACHE[key] = [t for t in RATE_LIMIT_CACHE[key] if current_time - t < RATE_LIMIT_WINDOW]
+    
+    if len(RATE_LIMIT_CACHE[key]) >= RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Terlalu banyak permintaan (Rate limit exceeded). Silakan coba lagi beberapa saat lagi."
+        )
+        
+    RATE_LIMIT_CACHE[key].append(current_time)
+
+
+
+    # Garbage collection
+    if len(RATE_LIMIT_CACHE) > 5000:
+        keys_to_delete = []
+        for k, timestamps in RATE_LIMIT_CACHE.items():
+            valid_timestamps = [t for t in timestamps if current_time - t < RATE_LIMIT_WINDOW]
+            if not valid_timestamps:
+                keys_to_delete.append(k)
+            else:
+                RATE_LIMIT_CACHE[k] = valid_timestamps
+        for k in keys_to_delete:
+            RATE_LIMIT_CACHE.pop(k, None)
+
+
+# ---------- Hardened Request Models ----------
 
 class AuthRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=3, max_length=100)
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=500)
 
 
 class PredictRequest(BaseModel):
-    home_team: str
-    away_team: str
-    date: str | None = None
+    home_team: str = Field(..., min_length=1, max_length=100)
+    away_team: str = Field(..., min_length=1, max_length=100)
+    date: str | None = Field(None, max_length=30)
 
 
 # ---------- Auth helpers ----------
@@ -68,11 +132,8 @@ def user_to_response(user: dict) -> dict:
 # ---------- Auth routes ----------
 
 @app.post("/auth/register")
-async def register(req: AuthRequest):
-    if len(req.username.strip()) < 3:
-        raise HTTPException(status_code=400, detail="Username minimal 3 karakter")
-    if len(req.password) < 3:
-        raise HTTPException(status_code=400, detail="Password minimal 3 karakter")
+async def register(req: AuthRequest, request: Request):
+    check_rate_limit(request, "auth")
     user = create_user(req.username.strip(), req.password)
     if not user:
         raise HTTPException(status_code=409, detail="Username sudah digunakan")
@@ -81,7 +142,8 @@ async def register(req: AuthRequest):
 
 
 @app.post("/auth/login")
-async def login(req: AuthRequest):
+async def login(req: AuthRequest, request: Request):
+    check_rate_limit(request, "auth")
     user = get_user_by_username(req.username.strip())
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Username atau password salah")
@@ -104,7 +166,6 @@ async def health():
 # ---------- Smart prediction logic ----------
 
 def _form_bar(icons: list[str]) -> str:
-    symbol = {"W": "▰", "D": "▱", "L": "▱"}
     color_text = {"W": "M", "D": "S", "L": "K"}
     return " ".join(color_text.get(i, "?") for i in icons)
 
@@ -140,8 +201,6 @@ def _confidence_label(home_xg: int, away_xg: int, home_stats: dict, away_stats: 
         return "Rendah"
     if diff >= 8:
         return "Tinggi"
-    if diff >= 4:
-        return "Sedang"
     return "Sedang"
 
 
@@ -158,7 +217,7 @@ def build_reasoning(
 ) -> str:
     lines = []
 
-    # ── Form terkini ──────────────────────────────────────────────
+    # Form terkini
     lines.append("**📊 Analisis Form Terkini:**")
 
     if home_results:
@@ -179,7 +238,7 @@ def build_reasoning(
     else:
         lines.append(f"{away_name}: Data tidak tersedia")
 
-    # ── Insight kunci ─────────────────────────────────────────────
+    # Insight kunci
     insights = []
 
     if home_stats.get("win_streak", 0) >= 3:
@@ -221,7 +280,7 @@ def build_reasoning(
         lines.append("\n**⚡ Insight Kunci:**")
         lines.extend(insights)
 
-    # ── Head-to-head ─────────────────────────────────────────────
+    # Head-to-head
     if h2h:
         hw, aw, draws = _h2h_record(h2h, home_name)
         lines.append(f"\n**🆚 Head-to-Head ({len(h2h)} pertemuan terakhir):**")
@@ -229,7 +288,6 @@ def build_reasoning(
         last = h2h[0]
         lines.append(f"Pertemuan terakhir: {last['home']} vs {last['away']}  {last['score']}  ({last['date']})")
 
-        # H2H trend adjustment note
         if hw > aw + 1:
             lines.append(f"Secara historis {home_name} dominan dalam head-to-head ini.")
         elif aw > hw + 1:
@@ -237,7 +295,7 @@ def build_reasoning(
         else:
             lines.append("Head-to-head kedua tim sangat seimbang.")
 
-    # ── Perbandingan kekuatan ─────────────────────────────────────
+    # Perbandingan kekuatan
     home_wp = home_stats.get("weighted_points", 0)
     away_wp = away_stats.get("weighted_points", 0)
     lines.append(f"\n**📈 Skor Kekuatan (Weighted Form):**")
@@ -256,7 +314,7 @@ def build_reasoning(
         verdict = f"{away_name} jauh lebih dominan saat ini."
     lines.append(verdict)
 
-    # ── Confidence & verdict ──────────────────────────────────────
+    # Confidence & verdict
     confidence = _confidence_label(predicted_home, predicted_away, home_stats, away_stats)
     lines.append(f"\n**🎯 Prediksi Skor: {home_name} {predicted_home} - {predicted_away} {away_name}**")
     lines.append(f"Tingkat keyakinan prediksi: **{confidence}**")
@@ -265,25 +323,13 @@ def build_reasoning(
     return "\n".join(lines)
 
 
-# ---------- Chat & predict routes (require auth) ----------
+# ---------- Chat & Predict Endpoints ----------
 
 @app.post("/chat")
-async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user)):
-    # Check credits
-    credits = current_user["credits"]
-    if credits != UNLIMITED and credits <= 0:
-        raise HTTPException(
-            status_code=402,
-            detail="Kredit habis! Kamu sudah menggunakan semua 5 kredit prediksi.",
-        )
+async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    check_rate_limit(request, "chat")
 
     message = req.message.strip()
-    if not message:
-        return JSONResponse(
-            {"reply": "Tanyakan prediksi pertandingan seperti: Chelsea vs Arsenal besok"},
-            status_code=400,
-        )
-
     extracted = extract_teams_and_date(message)
 
     if extracted["confidence"] == "low" or not extracted["home_team"]:
@@ -297,8 +343,15 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
             ),
             "extracted": extracted,
             "data_source": None,
-            "credits_remaining": credits,
+            "credits_remaining": current_user["credits"],
         }
+
+    credits = current_user["credits"]
+    if credits != UNLIMITED and credits <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail="Kredit habis! Kamu sudah menggunakan semua 5 kredit prediksi.",
+        )
 
     home_name = extracted["home_team"]
     away_name = extracted["away_team"]
@@ -311,7 +364,9 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
 
     home_stats = home_data.get("stats", calculate_team_stats(home_data.get("last_results", [])))
     away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
-    predicted_home, predicted_away = predict_score(home_stats, away_stats)
+    home_stats["name"] = home_data.get("name", home_name)
+    away_stats["name"] = away_data.get("name", away_name)
+    predicted_home, predicted_away = predict_score(home_stats, away_stats, h2h=h2h)
 
     actual_home = home_data.get("name", home_name)
     actual_away = away_data.get("name", away_name)
@@ -388,17 +443,25 @@ async def chat(req: ChatRequest, current_user: dict = Depends(get_current_user))
 
 
 @app.post("/predict")
-async def predict(req: PredictRequest, current_user: dict = Depends(get_current_user)):
+async def predict(req: PredictRequest, request: Request, current_user: dict = Depends(get_current_user)):
+    check_rate_limit(request, "predict")
+    
     credits = current_user["credits"]
     if credits != UNLIMITED and credits <= 0:
         raise HTTPException(status_code=402, detail="Kredit habis!")
+        
     home_data = fetch_team_data(req.home_team)
     away_data = fetch_team_data(req.away_team)
     h2h = get_h2h(home_data, away_data)
+    
     home_stats = home_data.get("stats", calculate_team_stats(home_data.get("last_results", [])))
     away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
-    predicted_home, predicted_away = predict_score(home_stats, away_stats)
+    home_stats["name"] = home_data.get("name", req.home_team)
+    away_stats["name"] = away_data.get("name", req.away_team)
+    
+    predicted_home, predicted_away = predict_score(home_stats, away_stats, h2h=h2h)
     new_credits = deduct_credit(current_user["id"])
+    
     return {
         "home_team": home_data,
         "away_team": away_data,

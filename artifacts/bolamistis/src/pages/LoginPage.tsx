@@ -43,19 +43,21 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 mb-4">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl border border-border bg-card mb-4 shadow-xs">
             <span className="text-2xl">⚽</span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Kukurma Playground</h1>
-          <p className="text-sm text-muted-foreground mt-1">Football Score Predictor</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            Kyonayr Playground
+          </h1>
+          <p className="text-xs text-muted-foreground/80 mt-1 font-medium">Football Score Predictor</p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex rounded-xl bg-muted/40 p-1 mb-6 border border-border">
+        <div className="flex rounded-xl bg-muted/20 p-1 mb-6 border border-border">
           <button
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               tab === "login"
-                ? "bg-primary text-primary-foreground shadow"
+                ? "bg-secondary text-foreground shadow-sm border border-border/80"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => { setTab("login"); setError(""); }}
@@ -63,9 +65,9 @@ export default function LoginPage() {
             Masuk
           </button>
           <button
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               tab === "register"
-                ? "bg-primary text-primary-foreground shadow"
+                ? "bg-secondary text-foreground shadow-sm border border-border/80"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => { setTab("register"); setError(""); }}
@@ -77,7 +79,7 @@ export default function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+            <label className="block text-[10px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
               Username
             </label>
             <input
@@ -87,12 +89,12 @@ export default function LoginPage() {
               placeholder="Masukkan username"
               required
               autoComplete="username"
-              className="w-full px-4 py-3 rounded-xl bg-muted/40 border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm"
+              className="w-full px-4 py-3.5 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-border-foreground/30 focus:ring-1 focus:ring-border/40 transition-all text-sm font-medium"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+            <label className="block text-[10px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
               Password
             </label>
             <input
@@ -102,12 +104,12 @@ export default function LoginPage() {
               placeholder="Masukkan password"
               required
               autoComplete={tab === "login" ? "current-password" : "new-password"}
-              className="w-full px-4 py-3 rounded-xl bg-muted/40 border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-sm"
+              className="w-full px-4 py-3.5 rounded-xl bg-card border border-border text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-border-foreground/30 focus:ring-1 focus:ring-border/40 transition-all text-sm font-medium"
             />
           </div>
 
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="px-4 py-3 rounded-xl bg-destructive/5 border border-destructive/20 text-destructive-foreground text-xs font-semibold">
               {error}
             </div>
           )}
@@ -115,7 +117,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || !username || !password}
-            className="w-full py-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+            className="w-full py-3.5 rounded-xl bg-primary hover:opacity-95 text-primary-foreground font-bold text-sm transition-all disabled:bg-muted disabled:text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed shadow-sm cursor-pointer"
           >
             {loading ? "Memproses..." : tab === "login" ? "Masuk" : "Buat Akun"}
           </button>
@@ -123,8 +125,8 @@ export default function LoginPage() {
 
         {/* Info for register */}
         {tab === "register" && (
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            Akun baru mendapat <span className="text-primary font-semibold">5 kredit</span> gratis untuk prediksi.
+          <p className="text-center text-xs text-muted-foreground mt-4.5 font-medium">
+            Akun baru mendapatkan <span className="text-primary font-bold">5 kredit</span> gratis untuk prediksi.
           </p>
         )}
       </div>
