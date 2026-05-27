@@ -64,6 +64,24 @@ LEAGUES = [
     ("fifa.friendly", "International Friendly"),
 ]
 
+NATIONAL_TEAM_SLUGS = {
+    "fifa.world",
+    "fifa.friendly",
+    "fifa.worldq.afc",
+    "fifa.worldq.uefa",
+    "fifa.worldq.conmebol",
+    "fifa.worldq.caf",
+    "fifa.worldq.concacaf",
+    "fifa.worldq.ofc",
+    "caf.nations",
+    "afc.cup",
+    "uefa.euro",
+    "conmebol.america",
+    "concacaf.nations.a",
+    "concacaf.gold",
+    "uefa.nations.a",
+}
+
 NAME_ALIASES: dict[str, str] = {
     # Club aliases
     "man united": "Manchester United",
@@ -354,12 +372,39 @@ def _get_last_results(team_id: str, team_name: str, league_slug: str, limit: int
     results = []
     slugs_to_try = [league_slug]
     # For national teams, also try alternative competition slugs
-    if league_slug in ("fifa.world", "concacaf.nations.a", "concacaf.gold",
-                       "conmebol.america", "uefa.euro", "uefa.nations.a", "fifa.friendly"):
-        slugs_to_try = [
-            "fifa.friendly", "concacaf.nations.a", "uefa.nations.a",
-            "conmebol.america", "concacaf.gold", "uefa.euro", "fifa.world",
+    is_national_slug = (
+        league_slug in NATIONAL_TEAM_SLUGS or 
+        league_slug.startswith("fifa.world") or 
+        league_slug.startswith("afc.") or 
+        league_slug.startswith("caf.") or 
+        league_slug.startswith("uefa.") or 
+        league_slug.startswith("conmebol.") or
+        league_slug.startswith("concacaf.")
+    )
+    if is_national_slug:
+        fallback_list = [
+            "fifa.friendly",
+            "fifa.worldq.afc",
+            "fifa.worldq.uefa",
+            "fifa.worldq.conmebol",
+            "fifa.worldq.caf",
+            "fifa.worldq.concacaf",
+            "fifa.worldq.ofc",
+            "caf.nations",
+            "afc.cup",
+            "uefa.euro",
+            "conmebol.america",
+            "concacaf.nations.a",
+            "concacaf.gold",
+            "uefa.nations.a",
+            "fifa.world"
         ]
+        seen = {league_slug}
+        slugs_to_try = [league_slug]
+        for s in fallback_list:
+            if s not in seen:
+                seen.add(s)
+                slugs_to_try.append(s)
 
     for slug in slugs_to_try:
         if len(results) >= limit:
@@ -420,12 +465,39 @@ def _get_last_results(team_id: str, team_name: str, league_slug: str, limit: int
 def _get_h2h(team1: dict, team2: dict) -> list[dict]:
     h2h = []
     slugs_to_try = [team1["league_slug"]]
-    if team1["league_slug"] in ("fifa.world", "concacaf.nations.a", "concacaf.gold",
-                                "conmebol.america", "uefa.euro", "uefa.nations.a", "fifa.friendly"):
-        slugs_to_try = [
-            "fifa.friendly", "concacaf.nations.a", "uefa.nations.a",
-            "conmebol.america", "concacaf.gold", "uefa.euro",
+    is_national_slug = (
+        team1["league_slug"] in NATIONAL_TEAM_SLUGS or 
+        team1["league_slug"].startswith("fifa.world") or 
+        team1["league_slug"].startswith("afc.") or 
+        team1["league_slug"].startswith("caf.") or 
+        team1["league_slug"].startswith("uefa.") or 
+        team1["league_slug"].startswith("conmebol.") or
+        team1["league_slug"].startswith("concacaf.")
+    )
+    if is_national_slug:
+        fallback_list = [
+            "fifa.friendly",
+            "fifa.worldq.afc",
+            "fifa.worldq.uefa",
+            "fifa.worldq.conmebol",
+            "fifa.worldq.caf",
+            "fifa.worldq.concacaf",
+            "fifa.worldq.ofc",
+            "caf.nations",
+            "afc.cup",
+            "uefa.euro",
+            "conmebol.america",
+            "concacaf.nations.a",
+            "concacaf.gold",
+            "uefa.nations.a",
+            "fifa.world"
         ]
+        seen = {team1["league_slug"]}
+        slugs_to_try = [team1["league_slug"]]
+        for s in fallback_list:
+            if s not in seen:
+                seen.add(s)
+                slugs_to_try.append(s)
 
     t2_name = team2["name"].lower()
     for slug in slugs_to_try:
