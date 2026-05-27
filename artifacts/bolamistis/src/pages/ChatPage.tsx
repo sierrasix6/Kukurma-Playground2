@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { Send, Zap, LogOut, Coins } from "lucide-react";
+import { Send, Zap, LogOut, Coins, Trophy, Settings, Cpu } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
 import PredictionCard from "@/components/PredictionCard";
@@ -77,15 +77,15 @@ function makeWelcome(username: string): Message {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-end gap-3 mb-4 animate-fade-in">
-      <div className="w-8 h-8 rounded-full border border-border bg-muted/40 flex items-center justify-center flex-shrink-0">
-        <Zap size={13} className="text-primary" />
+    <div className="flex items-end gap-3.5 mb-4 animate-fade-in">
+      <div className="w-7 h-7 rounded-xl border border-white/[0.03] bg-zinc-900 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-3xs">
+        <Cpu size={11} className="text-muted-foreground/75" />
       </div>
-      <div className="bg-card border border-border/80 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+      <div className="bg-zinc-900/35 border border-white/[0.03] rounded-2xl rounded-bl-none px-4 py-2.5 shadow-xs backdrop-blur-md">
         <div className="flex items-center gap-1.2 h-3">
-          <span className="typing-dot bg-muted-foreground/60" />
-          <span className="typing-dot bg-muted-foreground/60" />
-          <span className="typing-dot bg-muted-foreground/60" />
+          <span className="typing-dot bg-muted-foreground/50" />
+          <span className="typing-dot bg-muted-foreground/50" />
+          <span className="typing-dot bg-muted-foreground/50" />
         </div>
       </div>
     </div>
@@ -110,7 +110,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (isUser) {
     return (
       <div className="flex justify-end mb-4 animate-fade-in">
-        <div className="max-w-[75%] bg-secondary border border-border/60 text-foreground rounded-2xl rounded-br-sm px-4.5 py-2.5 text-sm leading-relaxed shadow-sm">
+        <div className="max-w-[75%] bg-zinc-900 border border-white/[0.04] text-foreground/90 rounded-2xl rounded-tr-none px-4 py-2.5 text-xs font-semibold leading-relaxed shadow-xs">
           {message.text}
         </div>
       </div>
@@ -118,19 +118,19 @@ function MessageBubble({ message }: { message: Message }) {
   }
 
   return (
-    <div className="flex items-end gap-3 mb-4 animate-fade-in">
-      <div className="w-8 h-8 rounded-full border border-border bg-muted/40 flex items-center justify-center flex-shrink-0 mb-0.5 shadow-sm">
-        <Zap size={13} className="text-primary" />
+    <div className="flex items-start gap-3.5 mb-5 animate-fade-in">
+      <div className="w-7 h-7 rounded-xl border border-emerald-500/10 bg-emerald-500/5 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-3xs">
+        <Cpu size={11} className="text-emerald-400" />
       </div>
-      <div className="max-w-[85%]">
+      <div className="max-w-[85%] flex-1">
         <div
-          className={`rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed shadow-sm ${
+          className={`rounded-2xl rounded-tl-none px-4.5 py-3 text-xs leading-relaxed shadow-xs font-medium ${
             isError
-              ? "bg-destructive/5 border border-destructive/20 text-destructive-foreground"
-              : "bg-card border border-border text-card-foreground"
+              ? "bg-rose-500/5 border border-rose-500/10 text-rose-300"
+              : "bg-zinc-900/10 border border-white/[0.03] text-foreground/90 backdrop-blur-md"
           }`}
         >
-          <p className="whitespace-pre-line">{parseReply(message.text)}</p>
+          <p className="whitespace-pre-line leading-relaxed">{parseReply(message.text)}</p>
         </div>
         {message.data && (
           <PredictionCard
@@ -141,7 +141,7 @@ function MessageBubble({ message }: { message: Message }) {
             matchDate={message.data.match_date}
           />
         )}
-        <p className="text-[10px] text-muted-foreground mt-1 ml-1">
+        <p className="text-[9px] text-muted-foreground/30 mt-1.5 ml-1 font-mono tracking-wider uppercase">
           {message.timestamp.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
         </p>
       </div>
@@ -151,41 +151,27 @@ function MessageBubble({ message }: { message: Message }) {
 
 function CreditsBar({ credits }: { credits: number }) {
   const unlimited = credits === -1;
-  const pct = unlimited ? 100 : Math.min(100, (credits / 5) * 100);
-  const color = unlimited
-    ? "bg-primary"
-    : credits > 2
-    ? "bg-primary"
-    : credits > 0
-    ? "bg-amber-500/80"
-    : "bg-destructive/80";
-
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-3 shadow-2xs">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Coins size={11} className="text-muted-foreground" />
-          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Kredit Prediksi</p>
+    <div className="rounded-2xl border border-white/[0.03] bg-zinc-950/20 p-3.5 space-y-2 shadow-2xs backdrop-blur-md">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-4.5 h-4.5 rounded-lg bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center">
+            <Coins size={9} className="text-emerald-400" />
+          </div>
+          <p className="text-[8px] font-extrabold text-muted-foreground/75 uppercase tracking-wider font-mono">Kredit Prediksi</p>
         </div>
-        <span className="text-[11px] font-bold text-foreground font-mono">
-          {unlimited ? "∞" : credits}
+        <span className="text-[10px] font-extrabold text-foreground/95 font-mono bg-zinc-900 border border-white/[0.04] px-1.5 py-0.5 rounded shadow-3xs">
+          {unlimited ? "∞" : `${credits}/5`}
         </span>
       </div>
-      <div className="h-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${color}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
       {!unlimited && (
-        <p className="text-[9px] text-muted-foreground/80 mt-1.5 font-medium">
-          {credits <= 0 ? "Kredit telah habis" : `${credits} dari 5 prediksi gratis`}
+        <p className="text-[8px] text-muted-foreground/40 font-semibold tracking-wide">
+          {credits <= 0 ? "Kredit gratis telah habis" : `${credits} prediksi tersisa`}
         </p>
       )}
     </div>
   );
 }
-
 
 const generateClientAiReasoning = async (data: PredictionData): Promise<string> => {
   const homeName = data.home_team.name;
@@ -271,13 +257,14 @@ Tulis analisis Anda dengan membaginya ke dalam 3 poin berikut:
   return "";
 };
 
-
 export default function ChatPage() {
   const { user, token, logout, updateCredits } = useAuth();
   const [, setLocation] = useLocation();
   const [messages, setMessages] = useState<Message[]>(() => [makeWelcome(user?.username ?? "")]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
+  const [showSettings, setShowSettings] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -288,6 +275,15 @@ export default function ChatPage() {
   const handleLogout = () => {
     logout();
     setLocation("/login");
+  };
+
+  const handleGeminiKeyChange = (val: string) => {
+    setGeminiKey(val);
+    if (val.trim()) {
+      localStorage.setItem("gemini_api_key", val.trim());
+    } else {
+      localStorage.removeItem("gemini_api_key");
+    }
   };
 
   const creditsExhausted = user && user.credits !== -1 && user.credits <= 0;
@@ -319,12 +315,17 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      if (geminiKey.trim()) {
+        headers["x-gemini-key"] = geminiKey.trim();
+      }
+
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({ message: trimmed }),
       });
 
@@ -354,7 +355,7 @@ export default function ChatPage() {
 
       let replyText = json.reply || json.detail || "Maaf, tidak ada respons dari server.";
 
-      if (json.data) {
+      if (json.data && !json.ai_generated_by_server) {
         try {
           const clientAi = await generateClientAiReasoning(json.data);
           if (clientAi) {
@@ -401,107 +402,137 @@ export default function ChatPage() {
   const showPrompts = messages.length === 1;
 
   return (
-    <div className="flex h-full bg-background font-sans text-foreground">
+    <div className="flex h-full bg-zinc-950 font-sans text-foreground">
       {/* Sidebar — desktop only */}
-      <aside className="hidden md:flex w-64 flex-col bg-sidebar border-r border-border p-5 flex-shrink-0 justify-between">
+      <aside className="hidden md:flex w-64 flex-col bg-zinc-950/80 border-r border-white/[0.04] p-6 flex-shrink-0 justify-between backdrop-blur-xl">
         <div className="flex flex-col gap-6">
           {/* Logo header */}
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl border border-border bg-card flex items-center justify-center shadow-xs">
-              <span className="text-base">⚽</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center shadow-xs">
+              <Trophy size={13} className="text-emerald-400" />
             </div>
             <div>
-              <h1 className="font-bold text-sm leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                Kyonayr Playground
+              <h1 className="font-extrabold text-xs tracking-wider text-foreground/90 uppercase font-mono">
+                Kyonayr Predictor
               </h1>
-              <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-semibold">Football Predictor</p>
+              <p className="text-[7px] text-muted-foreground/45 uppercase tracking-widest font-extrabold font-mono">STATISTICS ENGINE</p>
             </div>
+          </div>
+
+          {/* Settings panel */}
+          <div className="rounded-2xl border border-white/[0.03] bg-zinc-950/20 p-3.5 space-y-2 shadow-2xs backdrop-blur-md">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center justify-between w-full text-left text-muted-foreground hover:text-foreground/90 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Settings size={10} className="text-zinc-500" />
+                <span className="text-[8px] font-extrabold uppercase tracking-wider font-mono">PENGATURAN AI</span>
+              </div>
+              <span className="text-[7px] bg-zinc-900 border border-white/[0.04] px-1.5 py-0.5 rounded font-mono font-bold text-muted-foreground/80 hover:bg-zinc-800 transition-all cursor-pointer">
+                {geminiKey ? "GEMINI" : "CODESTRAL"}
+              </span>
+            </button>
+            
+            {showSettings && (
+              <div className="space-y-1.5 pt-1.5 border-t border-white/[0.02] animate-fade-in">
+                <p className="text-[8px] text-muted-foreground/40 leading-normal font-medium">
+                  Masukkan Gemini API Key untuk membuka ulasan analitis Gemini 2.0 Flash yang lebih cerdas.
+                </p>
+                <input
+                  type="password"
+                  value={geminiKey}
+                  onChange={(e) => handleGeminiKeyChange(e.target.value)}
+                  placeholder="Gemini API Key..."
+                  className="w-full px-2.5 py-1.5 text-[9px] font-mono rounded-lg bg-zinc-950 border border-white/[0.04] text-foreground placeholder:text-muted-foreground/20 focus:outline-none focus:border-emerald-500/20 transition-all"
+                />
+              </div>
+            )}
           </div>
 
           {/* Examples list */}
           <div className="space-y-1.5">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold px-2 mb-2">
+            <p className="text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold font-mono px-2.5 mb-1">
               Contoh Pertanyaan
             </p>
-            {EXAMPLE_PROMPTS.map((p) => (
-              <button
-                key={p}
-                onClick={() => sendMessage(p)}
-                disabled={loading || !!creditsExhausted}
-                className="w-full text-left text-xs px-3 py-2 rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-all duration-150 disabled:opacity-50 cursor-pointer"
-              >
-                {p}
-              </button>
-            ))}
+            <div className="space-y-1">
+              {EXAMPLE_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => sendMessage(p)}
+                  disabled={loading || !!creditsExhausted}
+                  className="w-full text-left text-[11px] px-3 py-1.5 rounded-xl text-muted-foreground/75 hover:bg-white/[0.01] border border-transparent hover:border-white/[0.01] hover:text-foreground/90 transition-all duration-200 disabled:opacity-50 cursor-pointer font-medium"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Sidebar bottom */}
-        <div className="space-y-4 pt-4 border-t border-border">
+        <div className="space-y-4 pt-4 border-t border-white/[0.04]">
           {/* Credits info */}
           {user && <CreditsBar credits={user.credits} />}
 
           {/* User profile & logout */}
           <div className="flex items-center justify-between px-1">
             <div className="min-w-0">
-              <p className="text-xs font-bold text-foreground truncate">{user?.username}</p>
-              <p className="text-[9px] text-muted-foreground/80 font-medium">
+              <p className="text-xs font-bold text-foreground/90 truncate">{user?.username}</p>
+              <p className="text-[8px] text-muted-foreground/40 font-bold uppercase tracking-widest font-mono">
                 {user?.credits === -1 ? "Administrator" : "Free Account"}
               </p>
             </div>
             <button
               onClick={handleLogout}
               title="Keluar"
-              className="w-8 h-8 rounded-lg border border-transparent flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent hover:border-border transition-all duration-150 cursor-pointer"
+              className="w-8 h-8 rounded-xl border border-white/[0.02] bg-zinc-900/30 flex items-center justify-center text-muted-foreground hover:text-foreground/90 hover:bg-white/[0.01] hover:border-white/[0.04] transition-all duration-200 cursor-pointer shadow-3xs"
             >
-              <LogOut size={13} />
+              <LogOut size={12} />
             </button>
           </div>
 
           {/* Data source card */}
-          <div className="rounded-xl bg-muted/20 border border-border/80 px-3.5 py-3 shadow-2xs">
-            <p className="text-[9px] font-bold text-foreground/80 uppercase tracking-wider mb-1">Data Sumber</p>
-            <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-medium">
-              ESPN Public API &bull; data statistik sepak bola riil liga-liga top dunia secara langsung.
-            </p>
+          <div className="rounded-xl border border-white/[0.02] bg-zinc-950/10 px-3.5 py-2.5 text-[8px] text-muted-foreground/40 leading-relaxed font-semibold font-mono">
+            ESPN Public API &bull; data statistik sepak bola riil liga-liga top dunia secara langsung.
           </div>
         </div>
       </aside>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-zinc-950">
         {/* Mobile header */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-sidebar flex-shrink-0">
-          <div className="w-8 h-8 rounded-xl border border-border bg-card flex items-center justify-center shadow-2xs">
-            <span className="text-sm">⚽</span>
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-white/[0.04] bg-zinc-950/80 backdrop-blur-md flex-shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center shadow-2xs">
+            <Trophy size={13} className="text-emerald-400" />
           </div>
           <div className="flex-1">
-            <h1 className="font-bold text-sm leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Kyonayr Playground
+            <h1 className="font-extrabold text-xs tracking-wider text-foreground/90 uppercase font-mono leading-none">
+              Kyonayr Predictor
             </h1>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-semibold">Predictor</p>
+            <p className="text-[7px] text-muted-foreground/45 uppercase tracking-widest font-extrabold font-mono mt-0.5">STATISTICS ENGINE</p>
           </div>
           {/* Mobile: credits badge */}
           {user && (
-            <div className="flex items-center gap-1.2 px-2.5 py-1 rounded-full bg-muted/40 border border-border shadow-2xs">
-              <Coins size={10} className="text-muted-foreground" />
-              <span className="text-[10px] font-bold text-foreground font-mono">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-900 border border-white/[0.04] shadow-3xs">
+              <Coins size={9} className="text-emerald-400" />
+              <span className="text-[9px] font-bold text-foreground/95 font-mono">
                 {user.credits === -1 ? "∞" : user.credits}
               </span>
             </div>
           )}
           <button
             onClick={handleLogout}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-900 border border-white/[0.02] text-muted-foreground hover:text-foreground/95 hover:bg-white/[0.01] transition-colors cursor-pointer"
           >
-            <LogOut size={13} />
+            <LogOut size={12} />
           </button>
         </header>
 
         {/* No credits banner */}
         {creditsExhausted && (
-          <div className="flex-shrink-0 bg-destructive/5 border-b border-destructive/15 px-4 py-2.5">
-            <p className="text-xs text-destructive/80 text-center font-medium">
+          <div className="flex-shrink-0 bg-rose-500/5 border-b border-rose-500/10 px-4 py-2.5">
+            <p className="text-xs text-rose-400/90 text-center font-semibold tracking-wide">
               ⚠️ Kredit prediksi gratis Anda telah habis.
             </p>
           </div>
@@ -509,7 +540,7 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin">
-          <div className="max-w-2xl mx-auto space-y-2">
+          <div className="max-w-2xl mx-auto space-y-3">
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
@@ -521,13 +552,13 @@ export default function ChatPage() {
         {/* Quick prompts */}
         {showPrompts && (
           <div className="px-4 pb-3 flex-shrink-0">
-            <div className="max-w-2xl mx-auto flex flex-wrap gap-2 justify-center md:justify-start">
+            <div className="max-w-2xl mx-auto flex flex-wrap gap-2 justify-center md:justify-start animate-fade-in">
               {EXAMPLE_PROMPTS.map((p) => (
                 <button
                   key={p}
                   onClick={() => sendMessage(p)}
                   disabled={loading || !!creditsExhausted}
-                  className="text-xs px-3.5 py-2 rounded-xl bg-card border border-border hover:border-muted-foreground/30 hover:bg-muted/20 text-muted-foreground hover:text-foreground transition-all duration-150 disabled:opacity-50 cursor-pointer shadow-2xs"
+                  className="text-[9px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-xl bg-zinc-900/10 border border-white/[0.03] hover:border-white/[0.06] hover:bg-white/[0.01] text-muted-foreground/60 hover:text-foreground/90 transition-all duration-200 disabled:opacity-50 cursor-pointer shadow-3xs"
                 >
                   {p}
                 </button>
@@ -537,10 +568,12 @@ export default function ChatPage() {
         )}
 
         {/* Input area */}
-        <div className="px-4 pb-4 pt-3 flex-shrink-0 border-t border-border bg-background">
+        <div className="px-4 pb-4 pt-3 flex-shrink-0 border-t border-white/[0.04] bg-zinc-950/80 backdrop-blur-md">
           <div className="max-w-2xl mx-auto">
-            <div className={`flex items-end gap-2 bg-card border rounded-2xl px-4 py-3.5 transition-all duration-200 shadow-sm ${
-              creditsExhausted ? "border-destructive/20 opacity-60" : "border-border focus-within:border-border-foreground/30 focus-within:ring-1 focus-within:ring-border/40"
+            <div className={`flex items-end gap-3 bg-zinc-900/10 border rounded-2xl px-4 py-3 shadow-inner transition-all duration-200 ${
+              creditsExhausted 
+                ? "border-rose-500/10 opacity-60" 
+                : "border-white/[0.04] focus-within:border-white/[0.08]"
             }`}>
               <textarea
                 ref={inputRef}
@@ -552,21 +585,21 @@ export default function ChatPage() {
                   e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={creditsExhausted ? "Kredit habis..." : "Chelsea vs Arsenal besok..."}
+                placeholder={creditsExhausted ? "Kredit habis..." : "Ketik prediksi tim, contoh: Chelsea vs Arsenal..."}
                 disabled={loading || !!creditsExhausted}
-                className="flex-1 bg-transparent resize-none text-sm text-foreground placeholder:text-muted-foreground/60 outline-none min-h-[24px] max-h-[120px] py-0.5 disabled:opacity-50 font-medium"
+                className="flex-1 bg-transparent resize-none text-xs text-foreground placeholder:text-muted-foreground/30 outline-none min-h-[20px] max-h-[120px] py-1 disabled:opacity-50 font-medium leading-relaxed"
               />
               <button
                 onClick={() => sendMessage(input)}
                 disabled={loading || !input.trim() || !!creditsExhausted}
-                className="flex-shrink-0 w-8 h-8 rounded-xl bg-primary text-primary-foreground hover:opacity-90 flex items-center justify-center transition-all disabled:bg-muted disabled:text-muted-foreground disabled:opacity-40 mb-0.5 cursor-pointer disabled:cursor-not-allowed shadow-xs"
+                className="flex-shrink-0 w-7 h-7 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 hover:scale-[1.02] flex items-center justify-center transition-all duration-200 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:scale-100 disabled:opacity-30 mb-0.5 cursor-pointer disabled:cursor-not-allowed shadow-sm"
               >
-                <Send size={13} />
+                <Send size={11} />
               </button>
             </div>
-            <p className="text-[10px] text-muted-foreground/60 text-center mt-2.5 font-medium">
+            <p className="text-[8px] text-muted-foreground/30 text-center mt-2.5 font-bold uppercase tracking-widest font-mono">
               Enter untuk mengirim &bull; Shift+Enter untuk baris baru &bull;{" "}
-              <span className="text-primary/70 font-semibold">@KyonariDev</span>
+              <span className="text-emerald-500/60 font-extrabold">BOLAMISTIS ANALYTICS</span>
             </p>
           </div>
         </div>
@@ -574,4 +607,3 @@ export default function ChatPage() {
     </div>
   );
 }
-

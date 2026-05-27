@@ -45,11 +45,11 @@ function TeamBadge({ name, badge }: { name: string; badge: string }) {
 
   if (badge) {
     return (
-      <div className="w-10 h-10 rounded-xl bg-card border border-border/80 flex items-center justify-center p-1.5 shadow-2xs">
+      <div className="w-10 h-10 rounded-xl bg-zinc-900/60 border border-white/[0.04] flex items-center justify-center p-1.5 shadow-2xs">
         <img
           src={badge}
           alt={name}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain filter drop-shadow-sm"
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = "none";
             const next = (e.target as HTMLImageElement).nextSibling as HTMLElement;
@@ -61,7 +61,7 @@ function TeamBadge({ name, badge }: { name: string; badge: string }) {
   }
 
   return (
-    <div className="w-10 h-10 rounded-xl bg-muted border border-border flex items-center justify-center text-xs font-bold text-muted-foreground shadow-2xs">
+    <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-white/[0.04] flex items-center justify-center text-[10px] font-bold text-muted-foreground/75 shadow-2xs font-mono">
       {initials}
     </div>
   );
@@ -69,26 +69,36 @@ function TeamBadge({ name, badge }: { name: string; badge: string }) {
 
 function FormPill({ outcome }: { outcome: "W" | "D" | "L" }) {
   const colors = {
-    W: "text-emerald-500 border border-emerald-500/15 bg-emerald-500/5",
-    D: "text-amber-500 border border-amber-500/15 bg-amber-500/5",
-    L: "text-rose-500 border border-rose-500/15 bg-rose-500/5",
+    W: "text-emerald-400 border-emerald-500/15 bg-emerald-500/5",
+    D: "text-zinc-400 border-white/[0.06] bg-white/[0.02]",
+    L: "text-rose-400 border-rose-500/15 bg-rose-500/5",
   };
   return (
-    <span className={`inline-flex items-center justify-center w-5.5 h-5.5 rounded-md text-[10px] font-bold tracking-tight shadow-3xs ${colors[outcome]}`}>
+    <span className={`inline-flex items-center justify-center w-5.5 h-5.5 rounded-lg text-[9px] font-extrabold tracking-tight font-mono border ${colors[outcome]}`}>
       {outcome}
     </span>
   );
 }
 
-function StrengthBar({ value, max, side }: { value: number; max: number; side: "left" | "right" }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 50;
+function PowerBalance({ homeVal, awayVal }: { homeVal: number; awayVal: number }) {
+  const total = homeVal + awayVal || 1;
+  const homePct = Math.round((homeVal / total) * 100);
+  const awayPct = 100 - homePct;
   return (
-    <div className={`flex items-center gap-2 w-full ${side === "right" ? "flex-row-reverse" : ""}`}>
-      <span className="text-[10px] font-bold text-foreground/80 font-mono w-5 text-center">{value}</span>
-      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground/60 font-mono tracking-widest uppercase">
+        <span className="text-emerald-400/90">{homePct}%</span>
+        <span>INDEX KEKUATAN</span>
+        <span className="text-zinc-400/90">{awayPct}%</span>
+      </div>
+      <div className="h-1 w-full bg-zinc-950 border border-white/[0.02] rounded-full overflow-hidden flex">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-700"
-          style={{ width: `${pct}%` }}
+          className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-l-full transition-all duration-700"
+          style={{ width: `${homePct}%` }}
+        />
+        <div
+          className="h-full bg-zinc-800 transition-all duration-700"
+          style={{ width: `${awayPct}%` }}
         />
       </div>
     </div>
@@ -102,85 +112,76 @@ export default function PredictionCard({
   h2h,
   matchDate,
 }: PredictionCardProps) {
-  const maxStrength = Math.max(homeTeam.strength, awayTeam.strength, 1);
-
   return (
-    <div className="mt-3 rounded-2xl border border-border/80 bg-card/45 backdrop-blur-md overflow-hidden shadow-sm transition-all duration-300 hover:border-border hover:shadow-md max-w-md md:max-w-full">
-      {/* Header banner */}
-      <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60 flex items-center justify-between">
-        <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Statistik & Prediksi</span>
-        {matchDate && (
-          <span className="text-[9px] text-muted-foreground font-bold tracking-tight">{matchDate}</span>
-        )}
+    <div className="mt-4 rounded-2xl border border-white/[0.04] bg-zinc-900/10 backdrop-blur-md p-5 shadow-xs transition-all duration-300 hover:border-white/[0.08] max-w-md md:max-w-full space-y-5">
+      
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between text-[8px] font-bold text-muted-foreground/50 uppercase tracking-widest font-mono">
+        <span>STATISTIK ENGINE &bull; PREDIKSI</span>
+        {matchDate && <span>{matchDate}</span>}
       </div>
 
-      {/* Teams + Score */}
-      <div className="px-5 py-6 flex items-center gap-4">
-        {/* Home team */}
-        <div className="flex-1 flex flex-col items-center gap-2.5 text-center min-w-0">
+      {/* Main Scoreboard Layout */}
+      <div className="flex items-center gap-4 py-1">
+        {/* Home Team */}
+        <div className="flex-1 flex flex-col items-center gap-2 text-center min-w-0">
           <TeamBadge name={homeTeam.name} badge={homeTeam.badge} />
           <div className="w-full">
-            <p className="font-bold text-xs text-foreground leading-tight truncate">{homeTeam.name}</p>
-            <p className="text-[10px] text-muted-foreground/75 mt-0.5 font-medium truncate">{homeTeam.league || "Home Team"}</p>
+            <p className="font-bold text-xs text-foreground/90 leading-tight truncate">{homeTeam.name}</p>
+            <p className="text-[8px] text-muted-foreground/45 mt-0.5 font-bold truncate uppercase tracking-widest font-mono">{homeTeam.league || "Home Team"}</p>
           </div>
         </div>
 
-        {/* Prediction Score */}
-        <div className="flex flex-col items-center gap-1.5 px-3 flex-shrink-0">
+        {/* Score Predictor */}
+        <div className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl bg-zinc-950/60 border border-white/[0.03] flex-shrink-0 min-w-[90px] shadow-3xs">
           <div className="flex items-center gap-2.5">
-            <span className="text-3xl font-extrabold font-mono text-primary leading-none tracking-tighter">
+            <span className="text-2xl font-extrabold font-mono text-emerald-400 leading-none tracking-tighter">
               {prediction.home_score}
             </span>
-            <span className="text-sm text-muted-foreground/50 font-semibold">-</span>
-            <span className="text-3xl font-extrabold font-mono text-foreground/80 leading-none tracking-tighter">
+            <span className="text-muted-foreground/20 font-bold text-base leading-none">-</span>
+            <span className="text-2xl font-extrabold font-mono text-foreground/80 leading-none tracking-tighter">
               {prediction.away_score}
             </span>
           </div>
-          <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-bold">
-            Prediksi Skor
+          <span className="text-[6px] uppercase tracking-widest text-muted-foreground/40 font-extrabold font-mono mt-1">
+            PREDIKSI SKOR
           </span>
         </div>
 
-        {/* Away team */}
-        <div className="flex-1 flex flex-col items-center gap-2.5 text-center min-w-0">
+        {/* Away Team */}
+        <div className="flex-1 flex flex-col items-center gap-2 text-center min-w-0">
           <TeamBadge name={awayTeam.name} badge={awayTeam.badge} />
           <div className="w-full">
-            <p className="font-bold text-xs text-foreground leading-tight truncate">{awayTeam.name}</p>
-            <p className="text-[10px] text-muted-foreground/75 mt-0.5 font-medium truncate">{awayTeam.league || "Away Team"}</p>
+            <p className="font-bold text-xs text-foreground/90 leading-tight truncate">{awayTeam.name}</p>
+            <p className="text-[8px] text-muted-foreground/45 mt-0.5 font-bold truncate uppercase tracking-widest font-mono">{awayTeam.league || "Away Team"}</p>
           </div>
         </div>
       </div>
 
-      {/* Strength Comparison */}
-      <div className="px-5 pb-4.5 border-t border-border/40 pt-3.5">
-        <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mb-2.5">
-          Skor Kekuatan (Weighted Form)
-        </p>
-        <div className="grid grid-cols-2 gap-4">
-          <StrengthBar value={homeTeam.strength} max={maxStrength * 1.1} side="left" />
-          <StrengthBar value={awayTeam.strength} max={maxStrength * 1.1} side="right" />
-        </div>
+      {/* Power Balance Bar */}
+      <div className="border-t border-white/[0.02] pt-3.5">
+        <PowerBalance homeVal={homeTeam.strength} awayVal={awayTeam.strength} />
       </div>
 
-      {/* Form Pills */}
+      {/* Form Grid */}
       {(homeTeam.last_results.length > 0 || awayTeam.last_results.length > 0) && (
-        <div className="px-5 pb-4.5 grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mb-2">
-              Form {homeTeam.name.split(" ")[0]}
+        <div className="grid grid-cols-2 gap-4 border-t border-white/[0.02] pt-3.5">
+          <div className="space-y-1.5">
+            <p className="text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold font-mono">
+              FORM Tuan Rumah
             </p>
             <div className="flex gap-1">
-              {homeTeam.last_results.map((r, i) => (
+              {homeTeam.last_results.slice(0, 5).map((r, i) => (
                 <FormPill key={i} outcome={r.outcome} />
               ))}
             </div>
           </div>
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mb-2">
-              Form {awayTeam.name.split(" ")[0]}
+          <div className="space-y-1.5">
+            <p className="text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold font-mono">
+              FORM Tamu
             </p>
             <div className="flex gap-1">
-              {awayTeam.last_results.map((r, i) => (
+              {awayTeam.last_results.slice(0, 5).map((r, i) => (
                 <FormPill key={i} outcome={r.outcome} />
               ))}
             </div>
@@ -188,33 +189,37 @@ export default function PredictionCard({
         </div>
       )}
 
-      {/* H2H Matches */}
+      {/* Head-to-Head Matches */}
       {h2h.length > 0 && (
-        <div className="px-5 pb-4 border-t border-border/40 pt-3.5">
-          <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold mb-3">
-            Pertemuan Terakhir (H2H)
+        <div className="border-t border-white/[0.02] pt-3.5 space-y-2.5">
+          <p className="text-[8px] uppercase tracking-widest text-muted-foreground/40 font-bold font-mono">
+            PERTEMUAN TERAKHIR (H2H)
           </p>
-          <div className="space-y-2">
-            {h2h.slice(0, 3).map((match, i) => (
-              <div key={i} className="flex items-center justify-between text-[11px] font-medium">
-                <span className="text-muted-foreground/80 font-mono text-[10px]">{match.date}</span>
-                <div className="flex items-center gap-1.5 text-foreground/85">
-                  <span className="truncate max-w-[80px] text-right">{match.home}</span>
-                  <span className="text-primary font-bold font-mono px-1 rounded bg-primary/5 border border-primary/10 text-[10px]">{match.score}</span>
-                  <span className="truncate max-w-[80px]">{match.away}</span>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-xl border border-white/[0.03] bg-zinc-950/20">
+            <table className="w-full border-collapse text-left text-[10px]">
+              <tbody>
+                {h2h.slice(0, 3).map((match, i) => (
+                  <tr key={i} className="border-b border-white/[0.01] last:border-0 hover:bg-white/[0.01] transition-colors">
+                    <td className="py-2 px-3 text-muted-foreground/35 font-mono text-[8px]">{match.date}</td>
+                    <td className="py-2 px-1 text-right font-semibold text-foreground/75 truncate max-w-[85px]">{match.home}</td>
+                    <td className="py-2 px-2 text-center font-mono text-emerald-400 font-bold bg-emerald-500/[0.01] w-12 border-x border-white/[0.01]">
+                      {match.score}
+                    </td>
+                    <td className="py-2 px-1 text-left font-semibold text-foreground/75 truncate max-w-[85px]">{match.away}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
       {/* Footer / Data Source */}
-      <div className="px-5 py-2.5 bg-muted/10 border-t border-border/40 flex items-center justify-between">
-        <p className="text-[9px] text-muted-foreground/60 font-medium">
-          Sumber: ESPN Public API &bull; real-time stats
-        </p>
+      <div className="flex justify-between items-center border-t border-white/[0.02] pt-3 text-[7px] text-muted-foreground/35 font-bold uppercase tracking-widest font-mono">
+        <span>ESPN PUBLIC API &bull; REALTIME DATA</span>
+        <span>BOLAMISTIS ANALYTICS</span>
       </div>
+
     </div>
   );
 }

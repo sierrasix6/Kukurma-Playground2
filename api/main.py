@@ -324,7 +324,7 @@ def build_reasoning(
     return "\n".join(lines)
 
 
-def generate_ai_reasoning(
+def generate_llm7_reasoning(
     home_name: str,
     away_name: str,
     home_results: list[dict],
@@ -335,20 +335,19 @@ def generate_ai_reasoning(
     predicted_home: int,
     predicted_away: int,
 ) -> str:
-    """Queries Pollinations AI to generate professional match analysis, with fallback to local rules."""
+    """Queries LLM7.io API with Mistral Codestral model to generate professional match analysis."""
     try:
-        url = "https://text.pollinations.ai/"
+        url = "https://api.llm7.io/v1/chat/completions"
         
-        # Construct the context prompt for the AI
         h_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in home_results])
         a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
         h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
         
         prompt = f"""
-[System Instruction]
 Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
 Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
-PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh teks). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh ulasan). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Tulis ulasan secara padat, ringkas, langsung pada intinya, dan hindari penjelasan bertele-tele. Tulis maksimal 2-3 paragraf singkat.
 
 [Data Statistik Pertandingan]
 Tim Tuan Rumah: {home_name}
@@ -356,11 +355,11 @@ Tim Tamu: {away_name}
 
 Laga Terakhir {home_name}:
 {h_results_str}
-Statistik {home_name}: Rata-rata gol dicetak {home_stats.get('avg_scored')}, kebobolan {home_stats.get('avg_conceded')}. Rata-rata kandang: skor {home_stats.get('home_avg_scored')}, kebobolan {home_stats.get('home_avg_conceded')}. Streak menang: {home_stats.get('win_streak')}, Clean sheet: {home_stats.get('clean_sheets')}.
+Statistik {home_name}: Rata-rata gol dicetak {home_stats.get('avg_scored')}, kebobolan {home_stats.get('avg_conceded')}. Streak menang: {home_stats.get('win_streak')}, Clean sheet: {home_stats.get('clean_sheets')}.
 
 Laga Terakhir {away_name}:
 {a_results_str}
-Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, kebobolan {away_stats.get('avg_conceded')}. Rata-rata tandang: skor {away_stats.get('away_avg_scored')}, kebobolan {away_stats.get('away_avg_conceded')}. Streak menang: {away_stats.get('win_streak')}, Clean sheet: {away_stats.get('clean_sheets')}.
+Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, kebobolan {away_stats.get('avg_conceded')}. Streak menang: {away_stats.get('win_streak')}, Clean sheet: {away_stats.get('clean_sheets')}.
 
 Catatan Head-to-Head (H2H):
 {h2h_str}
@@ -368,30 +367,171 @@ Catatan Head-to-Head (H2H):
 Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
 
 [Struktur Output]
-Tulis analisis Anda dengan membaginya ke dalam 3 poin berikut:
+Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
 1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
 2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
 3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
 """
         payload = {
+            "model": "codestral-latest",
             "messages": [
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt.strip()}
             ],
-            "model": "openai"
+            "temperature": 0.5
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer unused"
         }
         
-        # Call Pollinations text API (with 7 seconds timeout to prevent freezing)
-        resp = requests.post(url, json=payload, timeout=7)
+        resp = requests.post(url, json=payload, headers=headers, timeout=6)
+        if resp.status_code == 200:
+            data = resp.json()
+            choices = data.get("choices", [])
+            if choices:
+                content = choices[0].get("message", {}).get("content", "")
+                if content.strip():
+                    return content.strip()
+    except Exception as e:
+        print(f"[LLM7 Engine] Error: {e}")
+    return ""
+
+
+def generate_pollinations_get_reasoning(
+    home_name: str,
+    away_name: str,
+    home_results: list[dict],
+    away_results: list[dict],
+    h2h: list[dict],
+    home_stats: dict,
+    away_stats: dict,
+    predicted_home: int,
+    predicted_away: int,
+) -> str:
+    """Queries Pollinations GET text API to generate professional match analysis."""
+    try:
+        h_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in home_results])
+        a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
+        h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
+        
+        prompt = f"""
+Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
+Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh ulasan). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Tulis ulasan secara padat, ringkas, langsung pada intinya, dan hindari penjelasan bertele-tele. Tulis maksimal 2-3 paragraf singkat.
+
+[Data Statistik Pertandingan]
+Tim Tuan Rumah: {home_name}
+Tim Tamu: {away_name}
+
+Laga Terakhir {home_name}:
+{h_results_str}
+Statistik {home_name}: Rata-rata gol dicetak {home_stats.get('avg_scored')}, kebobolan {home_stats.get('avg_conceded')}.
+
+Laga Terakhir {away_name}:
+{a_results_str}
+Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, kebobolan {away_stats.get('avg_conceded')}.
+
+Catatan Head-to-Head (H2H):
+{h2h_str}
+
+Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
+
+[Struktur Output]
+Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
+1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away}.
+"""
+        import urllib.parse
+        encoded_prompt = urllib.parse.quote(prompt.strip())
+        url = f"https://text.pollinations.ai/{encoded_prompt}"
+        
+        resp = requests.get(url, timeout=7)
         if resp.status_code == 200 and resp.text.strip():
             return resp.text.strip()
     except Exception as e:
-        print(f"[AI Engine] Error calling Pollinations API: {e}")
-        
-    # Fallback to local rule-based engine if the AI API fails
-    return build_reasoning(
-        home_name, away_name, home_results, away_results, h2h, home_stats, away_stats, predicted_home, predicted_away
-    )
+        print(f"[Pollinations GET Engine] Error: {e}")
+    return ""
 
+
+def generate_gemini_reasoning(
+    api_key: str,
+    home_name: str,
+    away_name: str,
+    home_results: list[dict],
+    away_results: list[dict],
+    h2h: list[dict],
+    home_stats: dict,
+    away_stats: dict,
+    predicted_home: int,
+    predicted_away: int,
+) -> str:
+    """Queries Google Gemini API to generate professional match analysis."""
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+        
+        h_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in home_results])
+        a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
+        h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
+        
+        prompt = f"""
+Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
+Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh ulasan). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Tulis ulasan secara padat, ringkas, langsung pada intinya, dan hindari penjelasan bertele-tele. Tulis maksimal 2-3 paragraf singkat.
+
+[Data Statistik Pertandingan]
+Tim Tuan Rumah: {home_name}
+Tim Tamu: {away_name}
+
+Laga Terakhir {home_name}:
+{h_results_str}
+Statistik {home_name}: Rata-rata gol dicetak {home_stats.get('avg_scored')}, kebobolan {home_stats.get('avg_conceded')}. Streak menang: {home_stats.get('win_streak')}, Clean sheet: {home_stats.get('clean_sheets')}.
+
+Laga Terakhir {away_name}:
+{a_results_str}
+Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, kebobolan {away_stats.get('avg_conceded')}. Streak menang: {away_stats.get('win_streak')}, Clean sheet: {away_stats.get('clean_sheets')}.
+
+Catatan Head-to-Head (H2H):
+{h2h_str}
+
+Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
+
+[Struktur Output]
+Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
+1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
+"""
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt.strip()}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.5,
+                "maxOutputTokens": 1000
+            }
+        }
+        
+        resp = requests.post(url, json=payload, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            candidates = data.get("candidates", [])
+            if candidates:
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                if parts:
+                    text = parts[0].get("text", "")
+                    if text.strip():
+                        return text.strip()
+    except Exception as e:
+        print(f"[Gemini Engine] Error: {e}")
+    return ""
 
 
 # ---------- Chat & Predict Endpoints ----------
@@ -461,15 +601,64 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
     # Deduct credit AFTER successful data fetch
     new_credits = deduct_credit(current_user["id"])
 
-    reasoning = generate_ai_reasoning(
-        actual_home, actual_away,
-        home_data.get("last_results", []),
-        away_data.get("last_results", []),
-        h2h,
-        home_stats,
-        away_stats,
-        predicted_home, predicted_away,
-    )
+    api_key = request.headers.get("x-gemini-key") or os.environ.get("GEMINI_API_KEY")
+    ai_generated = False
+    reasoning = ""
+    
+    if api_key:
+        print("[AI Engine] Querying Google Gemini API...")
+        reasoning = generate_gemini_reasoning(
+            api_key,
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+        )
+        if reasoning:
+            ai_generated = True
+            
+    if not reasoning:
+        print("[AI Engine] Querying LLM7 Codestral Engine...")
+        reasoning = generate_llm7_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+        )
+        if reasoning:
+            ai_generated = True
+
+    if not reasoning:
+        print("[AI Engine] Querying Pollinations GET Engine...")
+        reasoning = generate_pollinations_get_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+        )
+        if reasoning:
+            ai_generated = True
+            
+    if not reasoning:
+        print("[AI Engine] Falling back to local rules-based engine...")
+        reasoning = build_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+        )
 
     data_points = {
         "home_team": {
@@ -510,6 +699,7 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
         "data": data_points,
         "data_source": "ESPN Public API (gratis, tanpa API key)",
         "credits_remaining": new_credits,
+        "ai_generated_by_server": ai_generated,
     }
 
 
