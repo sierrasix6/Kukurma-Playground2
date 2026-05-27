@@ -222,7 +222,8 @@ const generateClientAiReasoning = async (data: PredictionData): Promise<string> 
 [System Instruction]
 Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
 Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
-PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh teks). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh ulasan). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+PENTING: Tulis ulasan secara padat, ringkas, langsung pada intinya, dan hindari penjelasan bertele-tele agar respon cepat. Tulis maksimal 2-3 paragraf singkat.
 
 [Data Statistik Pertandingan]
 Tim Tuan Rumah: ${homeName}
@@ -249,7 +250,7 @@ Tulis analisis Anda dengan membaginya ke dalam 3 poin berikut:
 `;
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 9500); // 9.5s timeout
+  const id = setTimeout(() => controller.abort(), 20000); // 20s timeout
   
   try {
     const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.trim())}`;
