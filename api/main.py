@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import requests
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -218,7 +219,7 @@ def build_reasoning(
     lines = []
 
     # Form terkini
-    lines.append("**📊 Analisis Form Terkini:**")
+    lines.append("**Analisis Form Terkini:**")
 
     if home_results:
         form_str = _form_bar(home_stats.get("form_icons", []))
@@ -242,19 +243,19 @@ def build_reasoning(
     insights = []
 
     if home_stats.get("win_streak", 0) >= 3:
-        insights.append(f"🔥 {home_name} tengah dalam tren kemenangan {home_stats['win_streak']} laga beruntun!")
+        insights.append(f"{home_name} tengah dalam tren kemenangan {home_stats['win_streak']} laga beruntun.")
     if away_stats.get("win_streak", 0) >= 3:
-        insights.append(f"🔥 {away_name} tengah dalam tren kemenangan {away_stats['win_streak']} laga beruntun!")
+        insights.append(f"{away_name} tengah dalam tren kemenangan {away_stats['win_streak']} laga beruntun.")
 
     if home_stats.get("loss_streak", 0) >= 3:
-        insights.append(f"📉 {home_name} sedang dalam tren kekalahan {home_stats['loss_streak']} laga beruntun.")
+        insights.append(f"{home_name} sedang dalam tren kekalahan {home_stats['loss_streak']} laga beruntun.")
     if away_stats.get("loss_streak", 0) >= 3:
-        insights.append(f"📉 {away_name} sedang dalam tren kekalahan {away_stats['loss_streak']} laga beruntun.")
+        insights.append(f"{away_name} sedang dalam tren kekalahan {away_stats['loss_streak']} laga beruntun.")
 
     if home_stats.get("clean_sheets", 0) >= 3:
-        insights.append(f"🛡️ {home_name} memiliki pertahanan sangat solid ({home_stats['clean_sheets']} clean sheet dari {len(home_results)} laga).")
+        insights.append(f"{home_name} memiliki pertahanan sangat solid ({home_stats['clean_sheets']} clean sheet dari {len(home_results)} laga).")
     if away_stats.get("clean_sheets", 0) >= 3:
-        insights.append(f"🛡️ {away_name} memiliki pertahanan sangat solid ({away_stats['clean_sheets']} clean sheet dari {len(away_results)} laga).")
+        insights.append(f"{away_name} memiliki pertahanan sangat solid ({away_stats['clean_sheets']} clean sheet dari {len(away_results)} laga).")
 
     ha_scored = home_stats.get("avg_scored", 0)
     aa_scored = away_stats.get("avg_scored", 0)
@@ -262,28 +263,28 @@ def build_reasoning(
     aa_conceded = away_stats.get("avg_conceded", 99)
 
     if ha_scored > aa_scored + 0.6:
-        insights.append(f"⚔️ {home_name} lebih produktif di depan ({ha_scored} vs {aa_scored} gol/game).")
+        insights.append(f"{home_name} lebih produktif di depan ({ha_scored} vs {aa_scored} gol/game).")
     elif aa_scored > ha_scored + 0.6:
-        insights.append(f"⚔️ {away_name} lebih produktif di depan ({aa_scored} vs {ha_scored} gol/game).")
+        insights.append(f"{away_name} lebih produktif di depan ({aa_scored} vs {ha_scored} gol/game).")
 
     if ha_conceded < aa_conceded - 0.5:
-        insights.append(f"🔒 Pertahanan {home_name} lebih rapat ({ha_conceded} vs {aa_conceded} gol kemasukan/game).")
+        insights.append(f"Pertahanan {home_name} lebih rapat ({ha_conceded} vs {aa_conceded} gol kemasukan/game).")
     elif aa_conceded < ha_conceded - 0.5:
-        insights.append(f"🔒 Pertahanan {away_name} lebih rapat ({aa_conceded} vs {ha_conceded} gol kemasukan/game).")
+        insights.append(f"Pertahanan {away_name} lebih rapat ({aa_conceded} vs {ha_conceded} gol kemasukan/game).")
 
     if home_stats.get("failed_to_score", 0) >= 3:
-        insights.append(f"😬 {home_name} kesulitan mencetak gol — gagal skor di {home_stats['failed_to_score']} dari {len(home_results)} laga terakhir.")
+        insights.append(f"{home_name} kesulitan mencetak gol — gagal skor di {home_stats['failed_to_score']} dari {len(home_results)} laga terakhir.")
     if away_stats.get("failed_to_score", 0) >= 3:
-        insights.append(f"😬 {away_name} kesulitan mencetak gol — gagal skor di {away_stats['failed_to_score']} dari {len(away_results)} laga terakhir.")
+        insights.append(f"{away_name} kesulitan mencetak gol — gagal skor di {away_stats['failed_to_score']} dari {len(away_results)} laga terakhir.")
 
     if insights:
-        lines.append("\n**⚡ Insight Kunci:**")
-        lines.extend(insights)
+        lines.append("\n**Insight Kunci:**")
+        lines.extend([f"- {insight}" for insight in insights])
 
     # Head-to-head
     if h2h:
         hw, aw, draws = _h2h_record(h2h, home_name)
-        lines.append(f"\n**🆚 Head-to-Head ({len(h2h)} pertemuan terakhir):**")
+        lines.append(f"\n**Head-to-Head ({len(h2h)} pertemuan terakhir):**")
         lines.append(f"{home_name} {hw} — {draws} imbang — {aw} {away_name}")
         last = h2h[0]
         lines.append(f"Pertemuan terakhir: {last['home']} vs {last['away']}  {last['score']}  ({last['date']})")
@@ -298,7 +299,7 @@ def build_reasoning(
     # Perbandingan kekuatan
     home_wp = home_stats.get("weighted_points", 0)
     away_wp = away_stats.get("weighted_points", 0)
-    lines.append(f"\n**📈 Skor Kekuatan (Weighted Form):**")
+    lines.append(f"\n**Skor Kekuatan (Weighted Form):**")
     lines.append(f"{home_name}: {home_wp} poin  |  {away_name}: {away_wp} poin")
 
     wp_diff = home_wp - away_wp
@@ -316,11 +317,81 @@ def build_reasoning(
 
     # Confidence & verdict
     confidence = _confidence_label(predicted_home, predicted_away, home_stats, away_stats)
-    lines.append(f"\n**🎯 Prediksi Skor: {home_name} {predicted_home} - {predicted_away} {away_name}**")
+    lines.append(f"\n**Prediksi Skor: {home_name} {predicted_home} - {predicted_away} {away_name}**")
     lines.append(f"Tingkat keyakinan prediksi: **{confidence}**")
     lines.append("_(Prediksi berbasis model Expected Goals dengan analisis form, pertahanan, keunggulan kandang, dan momentum tren.)_")
 
     return "\n".join(lines)
+
+
+def generate_ai_reasoning(
+    home_name: str,
+    away_name: str,
+    home_results: list[dict],
+    away_results: list[dict],
+    h2h: list[dict],
+    home_stats: dict,
+    away_stats: dict,
+    predicted_home: int,
+    predicted_away: int,
+) -> str:
+    """Queries Pollinations AI to generate professional match analysis, with fallback to local rules."""
+    try:
+        url = "https://text.pollinations.ai/"
+        
+        # Construct the context prompt for the AI
+        h_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in home_results])
+        a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
+        h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
+        
+        prompt = f"""
+[System Instruction]
+Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
+Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh teks). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+
+[Data Statistik Pertandingan]
+Tim Tuan Rumah: {home_name}
+Tim Tamu: {away_name}
+
+Laga Terakhir {home_name}:
+{h_results_str}
+Statistik {home_name}: Rata-rata gol dicetak {home_stats.get('avg_scored')}, kebobolan {home_stats.get('avg_conceded')}. Rata-rata kandang: skor {home_stats.get('home_avg_scored')}, kebobolan {home_stats.get('home_avg_conceded')}. Streak menang: {home_stats.get('win_streak')}, Clean sheet: {home_stats.get('clean_sheets')}.
+
+Laga Terakhir {away_name}:
+{a_results_str}
+Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, kebobolan {away_stats.get('avg_conceded')}. Rata-rata tandang: skor {away_stats.get('away_avg_scored')}, kebobolan {away_stats.get('away_avg_conceded')}. Streak menang: {away_stats.get('win_streak')}, Clean sheet: {away_stats.get('clean_sheets')}.
+
+Catatan Head-to-Head (H2H):
+{h2h_str}
+
+Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
+
+[Struktur Output]
+Tulis analisis Anda dengan membaginya ke dalam 3 poin berikut:
+1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
+"""
+        payload = {
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "model": "openai"
+        }
+        
+        # Call Pollinations text API (with 7 seconds timeout to prevent freezing)
+        resp = requests.post(url, json=payload, timeout=7)
+        if resp.status_code == 200 and resp.text.strip():
+            return resp.text.strip()
+    except Exception as e:
+        print(f"[AI Engine] Error calling Pollinations API: {e}")
+        
+    # Fallback to local rule-based engine if the AI API fails
+    return build_reasoning(
+        home_name, away_name, home_results, away_results, h2h, home_stats, away_stats, predicted_home, predicted_away
+    )
+
 
 
 # ---------- Chat & Predict Endpoints ----------
@@ -390,7 +461,7 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
     # Deduct credit AFTER successful data fetch
     new_credits = deduct_credit(current_user["id"])
 
-    reasoning = build_reasoning(
+    reasoning = generate_ai_reasoning(
         actual_home, actual_away,
         home_data.get("last_results", []),
         away_data.get("last_results", []),

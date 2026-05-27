@@ -18,6 +18,22 @@ interface TeamData {
   badge: string;
   strength: number;
   last_results: LastResult[];
+  stats?: {
+    weighted_points: number;
+    avg_scored: number;
+    avg_conceded: number;
+    home_avg_scored: number;
+    home_avg_conceded: number;
+    away_avg_scored: number;
+    away_avg_conceded: number;
+    win_streak: number;
+    loss_streak: number;
+    clean_sheets: number;
+    failed_to_score: number;
+    form_label: string;
+    form_icons: string[];
+    goal_diff: number;
+  };
 }
 
 interface H2HMatch {
@@ -171,6 +187,90 @@ function CreditsBar({ credits }: { credits: number }) {
 }
 
 
+const generateClientAiReasoning = async (data: PredictionData): Promise<string> => {
+  const homeName = data.home_team.name;
+  const awayName = data.away_team.name;
+  
+  const homeResultsStr = data.home_team.last_results
+    ? data.home_team.last_results
+        .map((r) => `- Lawan ${r.opponent}: ${r.score} (${r.outcome}) di ${r.venue === "home" ? "Kandang" : "Tandang"}`)
+        .join("\n")
+    : "Data tidak tersedia";
+  const awayResultsStr = data.away_team.last_results
+    ? data.away_team.last_results
+        .map((r) => `- Lawan ${r.opponent}: ${r.score} (${r.outcome}) di ${r.venue === "home" ? "Kandang" : "Tandang"}`)
+        .join("\n")
+    : "Data tidak tersedia";
+    
+  const h2hStr = data.h2h && data.h2h.length > 0
+    ? data.h2h.map((m) => `- ${m.home} vs ${m.away}: ${m.score} (${m.date})`).join("\n")
+    : "Tidak ada catatan pertemuan baru-baru ini.";
+    
+  const homeStats = data.home_team.stats;
+  const awayStats = data.away_team.stats;
+  const predictedHome = data.prediction.home_score;
+  const predictedAway = data.prediction.away_score;
+  
+  const homeStatsStr = homeStats
+    ? `Rata-rata gol dicetak ${homeStats.avg_scored}, kebobolan ${homeStats.avg_conceded}. Streak menang: ${homeStats.win_streak}, Clean sheet: ${homeStats.clean_sheets}.`
+    : "Tidak ada data statistik.";
+  const awayStatsStr = awayStats
+    ? `Rata-rata gol dicetak ${awayStats.avg_scored}, kebobolan ${awayStats.avg_conceded}. Streak menang: ${awayStats.win_streak}, Clean sheet: ${awayStats.clean_sheets}.`
+    : "Tidak ada data statistik.";
+
+  const prompt = `
+[System Instruction]
+Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
+Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
+PENTING: Jangan gunakan emoji dalam ulasan Anda (maksimal hanya boleh 1 emoji di seluruh teks). Tulis dengan nada bahasa jurnalistik yang formal, analitis, dan profesional.
+
+[Data Statistik Pertandingan]
+Tim Tuan Rumah: ${homeName}
+Tim Tamu: ${awayName}
+
+Laga Terakhir ${homeName}:
+${homeResultsStr}
+Statistik ${homeName}: ${homeStatsStr}
+
+Laga Terakhir ${awayName}:
+${awayResultsStr}
+Statistik ${awayName}: ${awayStatsStr}
+
+Catatan Head-to-Head (H2H):
+${h2hStr}
+
+Prediksi Skor Matematis (Poisson Engine): ${homeName} ${predictedHome} - ${predictedAway} ${awayName}
+
+[Struktur Output]
+Tulis analisis Anda dengan membaginya ke dalam 3 poin berikut:
+1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar ${predictedHome} - ${predictedAway} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
+`;
+
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), 9500); // 9.5s timeout
+  
+  try {
+    const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.trim())}`;
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    if (response.ok) {
+      const text = await response.text();
+      if (text && text.trim()) {
+        return text.trim();
+      }
+    }
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+  return "";
+};
+
+
 export default function ChatPage() {
   const { user, token, logout, updateCredits } = useAuth();
   const [, setLocation] = useLocation();
@@ -251,10 +351,26 @@ export default function ChatPage() {
         return;
       }
 
+      let replyText = json.reply || json.detail || "Maaf, tidak ada respons dari server.";
+
+      if (json.data) {
+        try {
+          const clientAi = await generateClientAiReasoning(json.data);
+          if (clientAi) {
+            const matchDate = json.data.match_date;
+            replyText = `Berikut ulasan profesional pertandingan **${json.data.home_team.name}** vs **${json.data.away_team.name}**${
+              matchDate ? ` (${matchDate})` : ""
+            }:\n\n${clientAi}`;
+          }
+        } catch (e) {
+          console.warn("Client-side AI reasoning failed, using backend fallback:", e);
+        }
+      }
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        text: json.reply || json.detail || "Maaf, tidak ada respons dari server.",
+        text: replyText,
         data: json.data,
         timestamp: new Date(),
       };
