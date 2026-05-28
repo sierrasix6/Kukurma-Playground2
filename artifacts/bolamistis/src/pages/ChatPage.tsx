@@ -12,6 +12,13 @@ interface LastResult {
   venue: string;
 }
 
+interface RosterPlayer {
+  name: string;
+  jersey: string;
+  position: string;
+  age: string;
+}
+
 interface TeamData {
   name: string;
   league: string;
@@ -34,6 +41,7 @@ interface TeamData {
     form_icons: string[];
     goal_diff: number;
   };
+  roster?: RosterPlayer[];
 }
 
 interface H2HMatch {

@@ -334,6 +334,8 @@ def generate_llm7_reasoning(
     away_stats: dict,
     predicted_home: int,
     predicted_away: int,
+    home_roster: list[dict] = None,
+    away_roster: list[dict] = None,
 ) -> str:
     """Queries LLM7.io API with Mistral Codestral model to generate professional match analysis."""
     try:
@@ -343,6 +345,9 @@ def generate_llm7_reasoning(
         a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
         h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
         
+        h_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in home_roster[:18]]) if home_roster else "Tidak ada data roster pemain."
+        a_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in away_roster[:18]]) if away_roster else "Tidak ada data roster pemain."
+
         prompt = f"""
 Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
 Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
@@ -364,13 +369,16 @@ Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, keb
 Catatan Head-to-Head (H2H):
 {h2h_str}
 
+Skuad Pemain Utama {home_name}: {h_roster_str}
+Skuad Pemain Utama {away_name}: {a_roster_str}
+
 Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
 
 [Struktur Output]
 Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
-1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
-2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
-3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
+1. **Analisis Taktis & Form Terkini**: Penjelasan performa terkini kedua tim. PENTING: Anda harus menyebutkan/merujuk 1-2 nama pemain kunci dari daftar Skuad Pemain Utama di atas dan peran taktis mereka.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang, pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis dan logis yang membenarkan mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
 """
         payload = {
             "model": "codestral-latest",
@@ -407,6 +415,8 @@ def generate_pollinations_get_reasoning(
     away_stats: dict,
     predicted_home: int,
     predicted_away: int,
+    home_roster: list[dict] = None,
+    away_roster: list[dict] = None,
 ) -> str:
     """Queries Pollinations GET text API to generate professional match analysis."""
     try:
@@ -414,6 +424,9 @@ def generate_pollinations_get_reasoning(
         a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
         h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
         
+        h_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in home_roster[:15]]) if home_roster else "Tidak ada data roster pemain."
+        a_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in away_roster[:15]]) if away_roster else "Tidak ada data roster pemain."
+
         prompt = f"""
 Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
 Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
@@ -435,13 +448,16 @@ Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, keb
 Catatan Head-to-Head (H2H):
 {h2h_str}
 
+Skuad Pemain Utama {home_name}: {h_roster_str}
+Skuad Pemain Utama {away_name}: {a_roster_str}
+
 Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
 
 [Struktur Output]
 Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
-1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
-2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
-3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away}.
+1. **Analisis Taktis & Form Terkini**: Penjelasan performa terkini kedua tim. PENTING: Sebutkan 1-2 nama pemain kunci dari Skuad Pemain Utama di atas dan peran taktis mereka.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang, pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis dan logis yang membenarkan mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away}.
 """
         import urllib.parse
         encoded_prompt = urllib.parse.quote(prompt.strip())
@@ -466,6 +482,8 @@ def generate_gemini_reasoning(
     away_stats: dict,
     predicted_home: int,
     predicted_away: int,
+    home_roster: list[dict] = None,
+    away_roster: list[dict] = None,
 ) -> str:
     """Queries Google Gemini API to generate professional match analysis."""
     try:
@@ -475,6 +493,9 @@ def generate_gemini_reasoning(
         a_results_str = "\n".join([f"- Lawan {r['opponent']}: {r['score']} ({r['outcome']}) di {r['venue']}" for r in away_results])
         h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada catatan pertemuan baru-baru ini."
         
+        h_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in home_roster[:18]]) if home_roster else "Tidak ada data roster pemain."
+        a_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in away_roster[:18]]) if away_roster else "Tidak ada data roster pemain."
+
         prompt = f"""
 Anda adalah analis sepak bola profesional, pengamat taktis, dan jurnalis olahraga senior.
 Tugas Anda adalah menulis ulasan analisis pertandingan yang sangat mendalam, taktis, objektif, dan berbobot dalam Bahasa Indonesia.
@@ -496,13 +517,16 @@ Statistik {away_name}: Rata-rata gol dicetak {away_stats.get('avg_scored')}, keb
 Catatan Head-to-Head (H2H):
 {h2h_str}
 
+Skuad Pemain Utama {home_name}: {h_roster_str}
+Skuad Pemain Utama {away_name}: {a_roster_str}
+
 Prediksi Skor Matematis (Poisson Engine): {home_name} {predicted_home} - {predicted_away} {away_name}
 
 [Struktur Output]
 Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
-1. **Analisis Taktis & Form Terkini**: Penjelasan objektif dan mendalam mengenai performa, kelemahan, dan kekuatan terkini dari kedua tim.
-2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang (home/away splits), pertahanan vs serangan, dan pengaruh keunggulan stadion.
-3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis logis mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
+1. **Analisis Taktis & Form Terkini**: Penjelasan performa terkini kedua tim. PENTING: Anda harus menyebutkan/merujuk 1-2 nama pemain kunci dari Skuad Pemain Utama di atas dan peran taktis mereka.
+2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang, pertahanan vs serangan, dan pengaruh keunggulan stadion.
+3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis dan logis yang membenarkan mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
 """
         payload = {
             "contents": [
@@ -616,6 +640,8 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             home_stats,
             away_stats,
             predicted_home, predicted_away,
+            home_roster=home_data.get("roster", []),
+            away_roster=away_data.get("roster", []),
         )
         if reasoning:
             ai_generated = True
@@ -630,6 +656,8 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             home_stats,
             away_stats,
             predicted_home, predicted_away,
+            home_roster=home_data.get("roster", []),
+            away_roster=away_data.get("roster", []),
         )
         if reasoning:
             ai_generated = True
@@ -644,6 +672,8 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             home_stats,
             away_stats,
             predicted_home, predicted_away,
+            home_roster=home_data.get("roster", []),
+            away_roster=away_data.get("roster", []),
         )
         if reasoning:
             ai_generated = True
@@ -668,6 +698,7 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             "strength": home_stats.get("weighted_points", 0),
             "last_results": home_data.get("last_results", []),
             "stats": home_stats,
+            "roster": home_data.get("roster", []),
         },
         "away_team": {
             "name": actual_away,
@@ -676,6 +707,7 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             "strength": away_stats.get("weighted_points", 0),
             "last_results": away_data.get("last_results", []),
             "stats": away_stats,
+            "roster": away_data.get("roster", []),
         },
         "h2h": h2h,
         "prediction": {

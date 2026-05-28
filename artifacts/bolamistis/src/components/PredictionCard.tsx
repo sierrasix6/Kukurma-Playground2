@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Users } from "lucide-react";
+
 interface LastResult {
   date: string;
   opponent: string;
@@ -6,12 +9,20 @@ interface LastResult {
   venue: string;
 }
 
+interface RosterPlayer {
+  name: string;
+  jersey: string;
+  position: string;
+  age: string;
+}
+
 interface TeamData {
   name: string;
   league: string;
   badge: string;
   strength: number;
   last_results: LastResult[];
+  roster?: RosterPlayer[];
 }
 
 interface H2HMatch {
@@ -112,6 +123,33 @@ export default function PredictionCard({
   h2h,
   matchDate,
 }: PredictionCardProps) {
+  const [showRoster, setShowRoster] = useState(false);
+
+  const groupRoster = (players: RosterPlayer[] | undefined) => {
+    if (!players) return { GK: [], DEF: [], MID: [], FWD: [] };
+    const gk: RosterPlayer[] = [];
+    const def: RosterPlayer[] = [];
+    const mid: RosterPlayer[] = [];
+    const fwd: RosterPlayer[] = [];
+    players.forEach((p) => {
+      const pos = p.position.toLowerCase();
+      if (pos.includes("goalkeeper") || pos.includes("kiper")) {
+        gk.push(p);
+      } else if (pos.includes("defender") || pos.includes("back") || pos.includes("bek")) {
+        def.push(p);
+      } else if (pos.includes("midfielder") || pos.includes("gelandang")) {
+        mid.push(p);
+      } else {
+        fwd.push(p);
+      }
+    });
+    return { GK: gk, DEF: def, MID: mid, FWD: fwd };
+  };
+
+  const homeGroups = groupRoster(homeTeam.roster);
+  const awayGroups = groupRoster(awayTeam.roster);
+  const hasRoster = (homeTeam.roster && homeTeam.roster.length > 0) || (awayTeam.roster && awayTeam.roster.length > 0);
+
   return (
     <div className="mt-4 rounded-2xl border border-white/[0.04] bg-zinc-900/10 backdrop-blur-md p-5 shadow-xs transition-all duration-300 hover:border-white/[0.08] max-w-md md:max-w-full space-y-5">
       
@@ -186,6 +224,72 @@ export default function PredictionCard({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Roster / Skuad Pemain */}
+      {hasRoster && (
+        <div className="border-t border-white/[0.02] pt-3.5 space-y-2.5">
+          <button
+            onClick={() => setShowRoster(!showRoster)}
+            className="flex items-center justify-between w-full text-left text-[8px] font-bold text-muted-foreground/45 hover:text-foreground/90 uppercase tracking-widest font-mono cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5">
+              <Users size={10} className="text-zinc-500" />
+              <span>SKUAD UTAMA / ROSTER</span>
+            </div>
+            <span className="text-[7px] bg-zinc-900 border border-white/[0.04] px-1.5 py-0.5 rounded font-mono font-bold hover:bg-zinc-800 transition-all">
+              {showRoster ? "TUTUP" : "LIHAT SKUAD"}
+            </span>
+          </button>
+          
+          {showRoster && (
+            <div className="grid grid-cols-2 gap-4 pt-1.5 animate-fade-in text-[10px]">
+              {/* Home Team Roster */}
+              <div className="space-y-2.5 border-r border-white/[0.02] pr-2">
+                <p className="font-bold text-[9px] text-emerald-400 truncate uppercase font-mono">{homeTeam.name}</p>
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                  {Object.entries(homeGroups).map(([pos, players]) => (
+                    players.length > 0 && (
+                      <div key={pos} className="space-y-1">
+                        <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">{pos}</p>
+                        <div className="space-y-0.5">
+                          {players.slice(0, 8).map((p, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-0.5 hover:bg-white/[0.01] px-1 rounded transition-colors text-foreground/85">
+                              <span className="truncate max-w-[110px] font-medium">{p.name}</span>
+                              <span className="text-muted-foreground/40 font-mono text-[8px]">{p.jersey ? `#${p.jersey}` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+              
+              {/* Away Team Roster */}
+              <div className="space-y-2.5 pl-2">
+                <p className="font-bold text-[9px] text-zinc-400 truncate uppercase font-mono">{awayTeam.name}</p>
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                  {Object.entries(awayGroups).map(([pos, players]) => (
+                    players.length > 0 && (
+                      <div key={pos} className="space-y-1">
+                        <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">{pos}</p>
+                        <div className="space-y-0.5">
+                          {players.slice(0, 8).map((p, idx) => (
+                            <div key={idx} className="flex justify-between items-center py-0.5 hover:bg-white/[0.01] px-1 rounded transition-colors text-foreground/85">
+                              <span className="truncate max-w-[110px] font-medium">{p.name}</span>
+                              <span className="text-muted-foreground/40 font-mono text-[8px]">{p.jersey ? `#${p.jersey}` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

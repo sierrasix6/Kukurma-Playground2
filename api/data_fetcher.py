@@ -792,6 +792,28 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
     return predicted_home, predicted_away
 
 
+def fetch_team_roster(team_id: str, league_slug: str) -> list[dict]:
+    """Fetch the active roster for a team from ESPN API."""
+    url = f"{ESPN_BASE}/{league_slug}/teams/{team_id}/roster"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            athletes = data.get("athletes", [])
+            roster = []
+            for a in athletes:
+                roster.append({
+                    "name": a.get("displayName", ""),
+                    "jersey": a.get("jersey", ""),
+                    "position": a.get("position", {}).get("displayName", ""),
+                    "age": a.get("age", ""),
+                })
+            return roster
+    except Exception as e:
+        print(f"[Roster Fetch] Error for team {team_id} slug {league_slug}: {e}")
+    return []
+
+
 def fetch_team_data(team_name: str) -> dict:
     team_info = _find_team(team_name)
     if not team_info:
@@ -802,6 +824,7 @@ def fetch_team_data(team_name: str) -> dict:
             "last_results": [],
             "strength": 0,
             "stats": {**calculate_team_stats([]), "name": fallback_name},
+            "roster": [],
         }
     last_results = _get_last_results(
         team_info["id"], team_info["name"], team_info["league_slug"]
@@ -809,6 +832,24 @@ def fetch_team_data(team_name: str) -> dict:
     strength = calculate_strength(last_results)
     stats = calculate_team_stats(last_results)
     stats["name"] = team_info["name"]
+    
+    # Fetch roster with regional fallbacks for national teams
+    roster = fetch_team_roster(team_info["id"], team_info["league_slug"])
+    if not roster and (
+        team_info["league_slug"] in NATIONAL_TEAM_SLUGS or
+        team_info["league_slug"].startswith("fifa.world") or
+        team_info["league_slug"].startswith("afc.") or
+        team_info["league_slug"].startswith("caf.") or
+        team_info["league_slug"].startswith("uefa.") or
+        team_info["league_slug"].startswith("conmebol.") or
+        team_info["league_slug"].startswith("concacaf.")
+    ):
+        for fallback_slug in ["fifa.world", "fifa.worldq.afc", "fifa.worldq.uefa", "fifa.worldq.conmebol", "fifa.worldq.caf", "fifa.worldq.concacaf"]:
+            if fallback_slug != team_info["league_slug"]:
+                roster = fetch_team_roster(team_info["id"], fallback_slug)
+                if roster:
+                    break
+
     return {
         "found": True,
         "name": team_info["name"],
@@ -819,6 +860,7 @@ def fetch_team_data(team_name: str) -> dict:
         "last_results": last_results,
         "strength": strength,
         "stats": stats,
+        "roster": roster,
     }
 
 
