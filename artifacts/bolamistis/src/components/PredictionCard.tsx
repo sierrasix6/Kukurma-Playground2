@@ -270,32 +270,32 @@ export default function PredictionCard({
 
       {/* Pasaran Taruhan / Betting Odds (1xBet style) */}
       {prediction.betting_markets && (
-        <div className="border-t border-white/[0.02] pt-3.5 space-y-3.5">
-          <div className="flex items-center justify-between text-[8px] font-extrabold text-muted-foreground/45 uppercase tracking-widest font-mono">
+        <div className="border-t border-white/[0.04] pt-4 space-y-4">
+          <div className="flex items-center justify-between text-[10px] font-extrabold text-zinc-300 uppercase tracking-wider font-mono">
             <span>PASARAN TARUHAN &amp; ODDS (1XBET OPTIMIZED)</span>
-            <span className="text-[7.5px] bg-emerald-500/5 text-emerald-400 border border-emerald-500/10 px-1.5 py-0.5 rounded font-bold font-mono">
+            <span className="text-[8.5px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold font-mono">
               POISSON MODEL
             </span>
           </div>
 
           {/* AI Betting Recommendation Widget */}
-          <div className="relative overflow-hidden rounded-xl border border-emerald-500/15 bg-emerald-500/[0.02] p-4.5 space-y-2 shadow-2xs">
+          <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-zinc-950/85 p-4.5 space-y-2.5 shadow-xs">
             <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
-            <div className="flex items-center gap-1.5 text-[8.5px] font-extrabold text-emerald-400 uppercase tracking-widest font-mono">
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>REKOMENDASI TARUHAN AI</span>
             </div>
             <div className="flex justify-between items-end gap-4">
               <div>
-                <p className="text-xs font-bold text-foreground/90 mt-0.5 leading-snug">
+                <p className="text-sm font-extrabold text-white mt-1 leading-snug">
                   {prediction.betting_markets.recommended_tip.text}
                 </p>
-                <p className="text-[9.5px] text-muted-foreground/60 mt-1 leading-normal">
+                <p className="text-[10.5px] text-zinc-400 mt-1 leading-normal font-medium">
                   Pilihan terbaik berdasarkan probabilitas hasil {prediction.betting_markets.recommended_tip.confidence}%
                 </p>
               </div>
               <div className="flex flex-col items-end flex-shrink-0">
-                <span className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider">
+                <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider">
                   CONFIDENCE: {prediction.betting_markets.recommended_tip.confidence}%
                 </span>
               </div>
@@ -303,38 +303,38 @@ export default function PredictionCard({
           </div>
 
           {/* Grid of Main Betting Markets */}
-          <div className="space-y-3.5">
+          <div className="space-y-4">
             {/* Market: 1X2 */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                 <span>HASIL AKHIR (1X2)</span>
-                <span>DESIMAL ODDS &bull; PROBABILITAS</span>
+                <span className="text-[9px] font-medium text-zinc-400">DESIMAL ODDS &bull; PROBABILITAS</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">HOME (1)</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">HOME (1)</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets["1x2"]["1"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets["1x2"].probabilities["1"]}%
                   </span>
                 </div>
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">DRAW (X)</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">DRAW (X)</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets["1x2"]["x"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets["1x2"].probabilities["x"]}%
                   </span>
                 </div>
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">AWAY (2)</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">AWAY (2)</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets["1x2"]["2"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets["1x2"].probabilities["2"]}%
                   </span>
                 </div>
@@ -342,35 +342,35 @@ export default function PredictionCard({
             </div>
 
             {/* Market: Double Chance */}
-            <div className="space-y-1.5">
-              <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                 KESEMPATAN GANDA (DOUBLE CHANCE)
               </p>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">1X</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">1X</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets.double_chance["1x"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets.double_chance.probabilities["1x"]}%
                   </span>
                 </div>
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">12</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">12</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets.double_chance["12"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets.double_chance.probabilities["12"]}%
                   </span>
                 </div>
-                <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                  <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">X2</span>
-                  <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                  <span className="text-[9.5px] font-bold text-zinc-400 font-mono tracking-wider">X2</span>
+                  <span className="text-sm font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                     {prediction.betting_markets.double_chance["x2"].toFixed(2)}
                   </span>
-                  <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                     {prediction.betting_markets.double_chance.probabilities["x2"]}%
                   </span>
                 </div>
@@ -380,26 +380,26 @@ export default function PredictionCard({
             {/* Markets: Goals (Total 2.5) & BTTS */}
             <div className="grid grid-cols-2 gap-4">
               {/* Market: Total Goals 2.5 */}
-              <div className="space-y-1.5">
-                <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                   TOTAL GOL (OVER/UNDER 2.5)
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                    <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">OVER 2.5</span>
-                    <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                  <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                    <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">OVER 2.5</span>
+                    <span className="text-xs font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                       {prediction.betting_markets.total_2_5.over.toFixed(2)}
                     </span>
-                    <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                    <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                       {prediction.betting_markets.total_2_5.probabilities.over}%
                     </span>
                   </div>
-                  <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                    <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">UNDER 2.5</span>
-                    <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                  <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                    <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">UNDER 2.5</span>
+                    <span className="text-xs font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                       {prediction.betting_markets.total_2_5.under.toFixed(2)}
                     </span>
-                    <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                    <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                       {prediction.betting_markets.total_2_5.probabilities.under}%
                     </span>
                   </div>
@@ -407,26 +407,26 @@ export default function PredictionCard({
               </div>
 
               {/* Market: Both Teams To Score (BTTS) */}
-              <div className="space-y-1.5">
-                <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                   KEDUA TIM MENCETAK GOL (BTTS)
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                    <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">YES</span>
-                    <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                  <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                    <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">YES</span>
+                    <span className="text-xs font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                       {prediction.betting_markets.btts.yes.toFixed(2)}
                     </span>
-                    <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                    <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                       {prediction.betting_markets.btts.probabilities.yes}%
                     </span>
                   </div>
-                  <div className="bg-zinc-950/60 border border-white/[0.03] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/60 hover:border-emerald-500/15 group cursor-pointer">
-                    <span className="text-[7.5px] font-bold text-muted-foreground/45 font-mono tracking-wider">NO</span>
-                    <span className="text-xs font-extrabold text-foreground/90 font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
+                  <div className="bg-zinc-950/85 border border-white/[0.08] rounded-xl p-3 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/80 hover:border-emerald-500/30 group cursor-pointer">
+                    <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">NO</span>
+                    <span className="text-xs font-extrabold text-white font-mono mt-0.5 group-hover:text-emerald-400 transition-colors">
                       {prediction.betting_markets.btts.no.toFixed(2)}
                     </span>
-                    <span className="text-[7px] font-bold text-emerald-400/70 font-mono mt-0.5">
+                    <span className="text-[9px] font-bold text-emerald-400 font-mono mt-0.5">
                       {prediction.betting_markets.btts.probabilities.no}%
                     </span>
                   </div>
@@ -437,39 +437,39 @@ export default function PredictionCard({
             {/* Sub-markets: Over/Under 1.5 & 3.5 (Alternative lines) */}
             {prediction.betting_markets.total_1_5 && prediction.betting_markets.total_3_5 && (
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                     ALTERNATIF TOTAL (O/U 1.5)
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/50 hover:border-emerald-500/10 group cursor-pointer text-muted-foreground/80 hover:text-foreground">
-                      <span className="text-[7px] font-bold text-muted-foreground/35 font-mono tracking-wider">OVER 1.5</span>
-                      <span className="text-[11px] font-extrabold font-mono mt-0.5">
+                    <div className="bg-zinc-950/70 border border-white/[0.08] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/70 hover:border-emerald-500/20 group cursor-pointer text-zinc-300 hover:text-white">
+                      <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">OVER 1.5</span>
+                      <span className="text-xs font-extrabold font-mono mt-0.5 text-white group-hover:text-emerald-400 transition-colors">
                         {prediction.betting_markets.total_1_5.over.toFixed(2)}
                       </span>
                     </div>
-                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/50 hover:border-emerald-500/10 group cursor-pointer text-muted-foreground/80 hover:text-foreground">
-                      <span className="text-[7px] font-bold text-muted-foreground/35 font-mono tracking-wider">UNDER 1.5</span>
-                      <span className="text-[11px] font-extrabold font-mono mt-0.5">
+                    <div className="bg-zinc-950/70 border border-white/[0.08] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/70 hover:border-emerald-500/20 group cursor-pointer text-zinc-300 hover:text-white">
+                      <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">UNDER 1.5</span>
+                      <span className="text-xs font-extrabold font-mono mt-0.5 text-white group-hover:text-emerald-400 transition-colors">
                         {prediction.betting_markets.total_1_5.under.toFixed(2)}
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <p className="text-[7.5px] font-bold text-muted-foreground/40 font-mono tracking-widest uppercase">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-zinc-300 font-mono tracking-wider uppercase">
                     ALTERNATIF TOTAL (O/U 3.5)
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/50 hover:border-emerald-500/10 group cursor-pointer text-muted-foreground/80 hover:text-foreground">
-                      <span className="text-[7px] font-bold text-muted-foreground/35 font-mono tracking-wider">OVER 3.5</span>
-                      <span className="text-[11px] font-extrabold font-mono mt-0.5">
+                    <div className="bg-zinc-950/70 border border-white/[0.08] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/70 hover:border-emerald-500/20 group cursor-pointer text-zinc-300 hover:text-white">
+                      <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">OVER 3.5</span>
+                      <span className="text-xs font-extrabold font-mono mt-0.5 text-white group-hover:text-emerald-400 transition-colors">
                         {prediction.betting_markets.total_3_5.over.toFixed(2)}
                       </span>
                     </div>
-                    <div className="bg-zinc-950/40 border border-white/[0.02] rounded-xl p-2 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/50 hover:border-emerald-500/10 group cursor-pointer text-muted-foreground/80 hover:text-foreground">
-                      <span className="text-[7px] font-bold text-muted-foreground/35 font-mono tracking-wider">UNDER 3.5</span>
-                      <span className="text-[11px] font-extrabold font-mono mt-0.5">
+                    <div className="bg-zinc-950/70 border border-white/[0.08] rounded-xl p-2.5 flex flex-col items-center justify-center transition-all hover:bg-zinc-900/70 hover:border-emerald-500/20 group cursor-pointer text-zinc-300 hover:text-white">
+                      <span className="text-[9px] font-bold text-zinc-400 font-mono tracking-wider">UNDER 3.5</span>
+                      <span className="text-xs font-extrabold font-mono mt-0.5 text-white group-hover:text-emerald-400 transition-colors">
                         {prediction.betting_markets.total_3_5.under.toFixed(2)}
                       </span>
                     </div>
