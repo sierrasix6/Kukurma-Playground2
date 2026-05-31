@@ -55,7 +55,52 @@ interface PredictionData {
   home_team: TeamData;
   away_team: TeamData;
   h2h: H2HMatch[];
-  prediction: { home_score: number; away_score: number; score_str: string };
+  prediction: {
+    home_score: number;
+    away_score: number;
+    score_str: string;
+    betting_markets?: {
+      "1x2": {
+        "1": number;
+        "x": number;
+        "2": number;
+        probabilities: { "1": number; "x": number; "2": number };
+      };
+      double_chance: {
+        "1x": number;
+        "12": number;
+        "x2": number;
+        probabilities: { "1x": number; "12": number; "x2": number };
+      };
+      total_2_5: {
+        over: number;
+        under: number;
+        probabilities: { over: number; under: number };
+      };
+      total_1_5?: {
+        over: number;
+        under: number;
+        probabilities: { over: number; under: number };
+      };
+      total_3_5?: {
+        over: number;
+        under: number;
+        probabilities: { over: number; under: number };
+      };
+      btts: {
+        yes: number;
+        no: number;
+        probabilities: { yes: number; no: number };
+      };
+      recommended_tip: {
+        market: string;
+        selection: string;
+        odds: number;
+        confidence: number;
+        text: string;
+      };
+    };
+  };
   match_date?: string;
 }
 

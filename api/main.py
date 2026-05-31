@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from nlp_extractor import extract_teams_and_date
-from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats
+from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats, calculate_betting_markets
 from database import init_db, get_user_by_username, get_user_by_id, create_user, verify_password, deduct_credit, UNLIMITED
 from auth import create_token, decode_token
 
@@ -601,7 +601,8 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
     away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
     home_stats["name"] = home_data.get("name", home_name)
     away_stats["name"] = away_data.get("name", away_name)
-    predicted_home, predicted_away = predict_score(home_stats, away_stats, h2h=h2h)
+    predicted_home, predicted_away, home_xg, away_xg = predict_score(home_stats, away_stats, h2h=h2h)
+    betting_markets = calculate_betting_markets(home_xg, away_xg)
 
     actual_home = home_data.get("name", home_name)
     actual_away = away_data.get("name", away_name)
@@ -714,6 +715,7 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
             "home_score": predicted_home,
             "away_score": predicted_away,
             "score_str": f"{predicted_home}-{predicted_away}",
+            "betting_markets": betting_markets,
         },
         "match_date": match_date,
     }
@@ -752,7 +754,8 @@ async def predict(req: PredictRequest, request: Request, current_user: dict = De
     home_stats["name"] = home_data.get("name", req.home_team)
     away_stats["name"] = away_data.get("name", req.away_team)
     
-    predicted_home, predicted_away = predict_score(home_stats, away_stats, h2h=h2h)
+    predicted_home, predicted_away, home_xg, away_xg = predict_score(home_stats, away_stats, h2h=h2h)
+    betting_markets = calculate_betting_markets(home_xg, away_xg)
     new_credits = deduct_credit(current_user["id"])
     
     return {
@@ -763,6 +766,7 @@ async def predict(req: PredictRequest, request: Request, current_user: dict = De
             "home_score": predicted_home,
             "away_score": predicted_away,
             "score_str": f"{predicted_home}-{predicted_away}",
+            "betting_markets": betting_markets,
         },
         "credits_remaining": new_credits,
     }

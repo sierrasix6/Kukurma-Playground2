@@ -789,7 +789,7 @@ def predict_score(home_stats: dict, away_stats: dict, home_advantage: bool = Tru
         elif away_wp > home_wp + 2.5:
             predicted_away = 1
 
-    return predicted_home, predicted_away
+    return predicted_home, predicted_away, home_xg, away_xg
 
 
 def fetch_team_roster(team_id: str, league_slug: str) -> list[dict]:
@@ -868,3 +868,219 @@ def get_h2h(team1_data: dict, team2_data: dict) -> list[dict]:
     if not team1_data.get("found") or not team2_data.get("found"):
         return []
     return _get_h2h(team1_data, team2_data)
+
+
+def calculate_betting_markets(home_xg: float, away_xg: float) -> dict:
+    """
+    Calculates betting odds based on Poisson distribution.
+    Applies a typical 5% bookmaker margin (multiplier 0.95).
+    """
+    p_home = 0.0
+    p_draw = 0.0
+    p_away = 0.0
+    
+    p_over_1_5 = 0.0
+    p_under_1_5 = 0.0
+    p_over_2_5 = 0.0
+    p_under_2_5 = 0.0
+    p_over_3_5 = 0.0
+    p_under_3_5 = 0.0
+    
+    p_btts_yes = 0.0
+    p_btts_no = 0.0
+    
+    # Calculate probabilities up to 10 goals for accuracy
+    max_goals = 10
+    joint_probs = {}
+    
+    for h in range(max_goals + 1):
+        p_h = poisson_probability(home_xg, h)
+        for a in range(max_goals + 1):
+            p_a = poisson_probability(away_xg, a)
+            joint_prob = p_h * p_a
+            joint_probs[(h, a)] = joint_prob
+            
+            # Match results
+            if h > a:
+                p_home += joint_prob
+            elif h == a:
+                p_draw += joint_prob
+            else:
+                p_away += joint_prob
+                
+            # Totals
+            total_goals = h + a
+            if total_goals > 1.5:
+                p_over_1_5 += joint_prob
+            else:
+                p_under_1_5 += joint_prob
+                
+            if total_goals > 2.5:
+                p_over_2_5 += joint_prob
+            else:
+                p_under_2_5 += joint_prob
+                
+            if total_goals > 3.5:
+                p_over_3_5 += joint_prob
+            else:
+                p_under_3_5 += joint_prob
+                
+            # Both Teams to Score (BTTS)
+            if h >= 1 and a >= 1:
+                p_btts_yes += joint_prob
+            else:
+                p_btts_no += joint_prob
+
+    # Normalize (just in case they don't sum to exactly 1.0 due to tail truncation)
+    total_outcome_p = p_home + p_draw + p_away
+    if total_outcome_p > 0:
+        p_home /= total_outcome_p
+        p_draw /= total_outcome_p
+        p_away /= total_outcome_p
+        
+    total_totals_1_5 = p_over_1_5 + p_under_1_5
+    if total_totals_1_5 > 0:
+        p_over_1_5 /= total_totals_1_5
+        p_under_1_5 /= total_totals_1_5
+        
+    total_totals_2_5 = p_over_2_5 + p_under_2_5
+    if total_totals_2_5 > 0:
+        p_over_2_5 /= total_totals_2_5
+        p_under_2_5 /= total_totals_2_5
+        
+    total_totals_3_5 = p_over_3_5 + p_under_3_5
+    if total_totals_3_5 > 0:
+        p_over_3_5 /= total_totals_3_5
+        p_under_3_5 /= total_totals_3_5
+
+    total_btts = p_btts_yes + p_btts_no
+    if total_btts > 0:
+        p_btts_yes /= total_btts
+        p_btts_no /= total_btts
+
+    # Double chance probabilities
+    p_1x = p_home + p_draw
+    p_12 = p_home + p_away
+    p_x2 = p_draw + p_away
+
+    # Payout margin (95% payout, i.e. 5% bookmaker margin)
+    margin = 0.95
+    
+    # Helper to convert probability to odds with margin and clamps
+    def to_odds(p: float) -> float:
+        if p <= 0:
+            return 99.0
+        odds = margin / p
+        # Clamp between 1.01 and 99.0
+        return float(round(max(1.01, min(99.0, odds)), 2))
+
+    # Calculate final odds
+    odds = {
+        "1x2": {
+            "1": to_odds(p_home),
+            "x": to_odds(p_draw),
+            "2": to_odds(p_away),
+            "probabilities": {
+                "1": float(round(p_home * 100, 1)),
+                "x": float(round(p_draw * 100, 1)),
+                "2": float(round(p_away * 100, 1))
+            }
+        },
+        "double_chance": {
+            "1x": to_odds(p_1x),
+            "12": to_odds(p_12),
+            "x2": to_odds(p_x2),
+            "probabilities": {
+                "1x": float(round(p_1x * 100, 1)),
+                "12": float(round(p_12 * 100, 1)),
+                "x2": float(round(p_x2 * 100, 1))
+            }
+        },
+        "total_2_5": {
+            "over": to_odds(p_over_2_5),
+            "under": to_odds(p_under_2_5),
+            "probabilities": {
+                "over": float(round(p_over_2_5 * 100, 1)),
+                "under": float(round(p_under_2_5 * 100, 1))
+            }
+        },
+        "total_1_5": {
+            "over": to_odds(p_over_1_5),
+            "under": to_odds(p_under_1_5),
+            "probabilities": {
+                "over": float(round(p_over_1_5 * 100, 1)),
+                "under": float(round(p_under_1_5 * 100, 1))
+            }
+        },
+        "total_3_5": {
+            "over": to_odds(p_over_3_5),
+            "under": to_odds(p_under_3_5),
+            "probabilities": {
+                "over": float(round(p_over_3_5 * 100, 1)),
+                "under": float(round(p_under_3_5 * 100, 1))
+            }
+        },
+        "btts": {
+            "yes": to_odds(p_btts_yes),
+            "no": to_odds(p_btts_no),
+            "probabilities": {
+                "yes": float(round(p_btts_yes * 100, 1)),
+                "no": float(round(p_btts_no * 100, 1))
+            }
+        }
+    }
+    
+    # AI Betting Tip generator (rule-based recommendation for the premium card value-add)
+    # Find highest confidence / best value bet
+    tips = []
+    # 1. 1X2 tips
+    if p_home > 0.60:
+        tips.append({"type": "1X2", "selection": "1", "odds": odds["1x2"]["1"], "confidence": p_home, "text": f"Home Win (1) @ {odds['1x2']['1']}"})
+    elif p_away > 0.60:
+        tips.append({"type": "1X2", "selection": "2", "odds": odds["1x2"]["2"], "confidence": p_away, "text": f"Away Win (2) @ {odds['1x2']['2']}"})
+        
+    # 2. Double chance tips (higher safety)
+    if p_1x > 0.80:
+        tips.append({"type": "Double Chance", "selection": "1X", "odds": odds["double_chance"]["1x"], "confidence": p_1x, "text": f"Home Win or Draw (1X) @ {odds['double_chance']['1x']}"})
+    elif p_x2 > 0.80:
+        tips.append({"type": "Double Chance", "selection": "X2", "odds": odds["double_chance"]["x2"], "confidence": p_x2, "text": f"Draw or Away Win (X2) @ {odds['double_chance']['x2']}"})
+        
+    # 3. Totals
+    if p_over_2_5 > 0.60:
+        tips.append({"type": "Total Goals", "selection": "Over 2.5", "odds": odds["total_2_5"]["over"], "confidence": p_over_2_5, "text": f"Total Over 2.5 @ {odds['total_2_5']['over']}"})
+    elif p_under_2_5 > 0.60:
+        tips.append({"type": "Total Goals", "selection": "Under 2.5", "odds": odds["total_2_5"]["under"], "confidence": p_under_2_5, "text": f"Total Under 2.5 @ {odds['total_2_5']['under']}"})
+        
+    # 4. BTTS
+    if p_btts_yes > 0.60:
+        tips.append({"type": "Both Teams to Score", "selection": "Yes", "odds": odds["btts"]["yes"], "confidence": p_btts_yes, "text": f"BTTS (Yes) @ {odds['btts']['yes']}"})
+    elif p_btts_no > 0.60:
+        tips.append({"type": "Both Teams to Score", "selection": "No", "odds": odds["btts"]["no"], "confidence": p_btts_no, "text": f"BTTS (No) @ {odds['btts']['no']}"})
+
+    # Sort tips by confidence (probability) descending
+    tips.sort(key=lambda x: x["confidence"], reverse=True)
+    
+    # If no high confidence tips, select the best double chance or total under/over as fallback
+    if not tips:
+        # Fallback to the one with highest probability
+        candidate = {
+            "type": "Double Chance",
+            "selection": "1X" if p_1x >= p_x2 else "X2",
+            "odds": odds["double_chance"]["1x"] if p_1x >= p_x2 else odds["double_chance"]["x2"],
+            "confidence": max(p_1x, p_x2)
+        }
+        candidate["text"] = f"Double Chance ({candidate['selection']}) @ {candidate['odds']}"
+        best_tip = candidate
+    else:
+        best_tip = tips[0]
+        
+    odds["recommended_tip"] = {
+        "market": best_tip["type"],
+        "selection": best_tip["selection"],
+        "odds": best_tip["odds"],
+        "confidence": float(round(best_tip["confidence"] * 100, 1)),
+        "text": best_tip["text"]
+    }
+    
+    return odds
+
