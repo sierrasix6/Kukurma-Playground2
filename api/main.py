@@ -380,6 +380,32 @@ Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
 2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang, pertahanan vs serangan, dan pengaruh keunggulan stadion.
 3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis dan logis yang membenarkan mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away} (Anda dapat menyetujui atau menyesuaikan tipis skor prediksi ini berdasarkan analisis taktis Anda).
 """
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer unused"
+        }
+        # Try Qwen3-235B
+        try:
+            payload = {
+                "model": "qwen3-235b",
+                "messages": [
+                    {"role": "user", "content": prompt.strip()}
+                ],
+                "temperature": 0.5
+            }
+            resp = requests.post(url, json=payload, headers=headers, timeout=8)
+            if resp.status_code == 200:
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices:
+                    content = choices[0].get("message", {}).get("content", "")
+                    if content.strip():
+                        print("[LLM7 Engine] Successfully used Qwen3-235B model.")
+                        return content.strip()
+        except Exception as qwen_err:
+            print(f"[LLM7 Engine] Qwen3-235B failed: {qwen_err}. Falling back to codestral...")
+
+        # Fallback to Mistral Codestral
         payload = {
             "model": "codestral-latest",
             "messages": [
@@ -387,18 +413,14 @@ Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
             ],
             "temperature": 0.5
         }
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer unused"
-        }
-        
-        resp = requests.post(url, json=payload, headers=headers, timeout=6)
+        resp = requests.post(url, json=payload, headers=headers, timeout=8)
         if resp.status_code == 200:
             data = resp.json()
             choices = data.get("choices", [])
             if choices:
                 content = choices[0].get("message", {}).get("content", "")
                 if content.strip():
+                    print("[LLM7 Engine] Successfully used codestral-latest model.")
                     return content.strip()
     except Exception as e:
         print(f"[LLM7 Engine] Error: {e}")
@@ -459,15 +481,19 @@ Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
 2. **Kunci Pertandingan & Analisis Venue**: Bahas detail performa kandang vs tandang, pertahanan vs serangan, dan pengaruh keunggulan stadion.
 3. **Prediksi Skor & Verdict**: Berikan penjelasan taktis dan logis yang membenarkan mengapa skor akhir diprediksi berkisar {predicted_home} - {predicted_away}.
 """
-        import urllib.parse
-        encoded_prompt = urllib.parse.quote(prompt.strip())
-        url = f"https://text.pollinations.ai/{encoded_prompt}"
-        
-        resp = requests.get(url, timeout=7)
+        url = "https://text.pollinations.ai/"
+        payload = {
+            "messages": [
+                {"role": "user", "content": prompt.strip()}
+            ],
+            "model": "openai"
+        }
+        resp = requests.post(url, json=payload, timeout=15)
         if resp.status_code == 200 and resp.text.strip():
+            print("[Pollinations Engine] Successfully used openai model.")
             return resp.text.strip()
     except Exception as e:
-        print(f"[Pollinations GET Engine] Error: {e}")
+        print(f"[Pollinations Engine] Error: {e}")
     return ""
 
 
