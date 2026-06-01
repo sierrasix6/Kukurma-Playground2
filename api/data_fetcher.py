@@ -1360,3 +1360,298 @@ def calculate_betting_markets(home_xg: float, away_xg: float) -> dict:
     
     return odds
 
+
+def search_yahoo_odds(home_team: str, away_team: str) -> str:
+    """Scrapes Yahoo Search for 1xbet decimal odds of the match."""
+    from bs4 import BeautifulSoup
+    url = "https://search.yahoo.com/search"
+    query = f"{home_team} vs {away_team} 1xbet odds decimal"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    try:
+        resp = requests.get(url, params={"p": query}, headers=headers, timeout=8)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            snippets = soup.find_all('div', class_='compText')
+            lines = []
+            for idx, snippet_div in enumerate(snippets[:6]):
+                parent = snippet_div.parent
+                title = "No Title"
+                curr = parent
+                for _ in range(4):
+                    if not curr:
+                        break
+                    h3 = curr.find('h3')
+                    if h3:
+                        title = h3.get_text().strip()
+                        break
+                    curr = curr.parent
+                snippet = snippet_div.get_text().strip()
+                lines.append(f"Result {idx+1}: {title}\nSnippet: {snippet}")
+            return "\n\n".join(lines)
+    except Exception as e:
+        print(f"[Odds Search] Yahoo Search scrape error: {e}")
+    return ""
+
+
+def extract_odds_with_ai(home_team: str, away_team: str, search_context: str) -> Optional[dict]:
+    """Queries Pollinations unified AI endpoint to extract odds from search snippets."""
+    if not search_context or not search_context.strip():
+        return None
+        
+    prompt = f"""
+Analyze the web search results for the football match: {home_team} vs {away_team}.
+Extract the real-time decimal betting odds from 1xbet or other bookmakers if present.
+
+Search Results:
+\"\"\"
+{search_context}
+\"\"\"
+
+Your task is to return ONLY a raw JSON block containing the odds that were found. 
+If 1X2 odds are found in the text (either direct decimal odds like 1.85, 3.60, 4.20 or as percentages like 55% win probability), populate them. If percentages are given (e.g. 60.98% Win, 21.55% Draw, 15.38% Away), convert them to decimal odds using the formula: odds = 0.95 / (percent / 100).
+Also look for Over/Under 2.5 and BTTS (Both Teams to Score) odds.
+
+Use the following JSON structure. If any value or market is not found, leave it as null.
+DO NOT write any explanation, markdown formatting, or code fences. Only output the raw JSON.
+
+{{
+  "1x2": {{
+    "1": null,
+    "x": null,
+    "2": null
+  }},
+  "total_2_5": {{
+    "over": null,
+    "under": null
+  }},
+  "btts": {{
+    "yes": null,
+    "no": null
+  }}
+}}
+"""
+    url = "https://text.pollinations.ai/"
+    payload = {
+        "messages": [
+            {"role": "user", "content": prompt.strip()}
+        ],
+        "model": "openai"
+    }
+    
+    import time
+    for attempt in range(1, 3):
+        try:
+            print(f"[Odds Search] AI extraction attempt {attempt}...")
+            resp = requests.post(url, json=payload, timeout=20)
+            if resp.status_code == 200:
+                response_text = resp.text.strip()
+                # Clean response from any markdown block formatting
+                cleaned = re.sub(r'^```json\s*', '', response_text)
+                cleaned = re.sub(r'\s*```$', '', cleaned)
+                cleaned = cleaned.strip()
+                
+                parsed = json.loads(cleaned)
+                return parsed
+            else:
+                print(f"[Odds Search] AI extraction attempt {attempt} status: {resp.status_code}")
+        except Exception as e:
+            print(f"[Odds Search] AI extraction attempt {attempt} error: {e}")
+            if attempt < 2:
+                time.sleep(1)
+    return None
+
+
+def override_betting_markets_with_realtime(betting_markets: dict, realtime_odds: dict) -> dict:
+    """Updates decimal odds, calculates Double Chance, and re-computes the recommended tip."""
+    if not realtime_odds:
+        return betting_markets
+        
+    margin = 0.95
+    updated = False
+    
+    # 1. Update 1X2
+    odds_1x2 = realtime_odds.get("1x2")
+    if odds_1x2 and odds_1x2.get("1") and odds_1x2.get("x") and odds_1x2.get("2"):
+        try:
+            o1 = float(odds_1x2["1"])
+            ox = float(odds_1x2["x"])
+            o2 = float(odds_1x2["2"])
+            
+            betting_markets["1x2"]["1"] = o1
+            betting_markets["1x2"]["x"] = ox
+            betting_markets["1x2"]["2"] = o2
+            
+            p1 = 1 / o1
+            px = 1 / ox
+            p2 = 1 / o2
+            s = p1 + px + p2
+            if s > 0:
+                p1_n = p1 / s
+                px_n = px / s
+                p2_n = p2 / s
+                betting_markets["1x2"]["probabilities"] = {
+                    "1": float(round(p1_n * 100, 1)),
+                    "x": float(round(px_n * 100, 1)),
+                    "2": float(round(p2_n * 100, 1))
+                }
+                
+                # Double Chance calculation based on new 1X2 probabilities
+                p_1x = p1_n + px_n
+                p_12 = p1_n + p2_n
+                p_x2 = px_n + p2_n
+                
+                betting_markets["double_chance"]["1x"] = float(round(max(1.01, min(99.0, margin / p_1x)), 2))
+                betting_markets["double_chance"]["12"] = float(round(max(1.01, min(99.0, margin / p_12)), 2))
+                betting_markets["double_chance"]["x2"] = float(round(max(1.01, min(99.0, margin / p_x2)), 2))
+                
+                betting_markets["double_chance"]["probabilities"] = {
+                    "1x": float(round(p_1x * 100, 1)),
+                    "12": float(round(p_12 * 100, 1)),
+                    "x2": float(round(p_x2 * 100, 1))
+                }
+                updated = True
+        except (ValueError, ZeroDivisionError, TypeError):
+            pass
+
+    # 2. Update Total 2.5
+    odds_tot = realtime_odds.get("total_2_5")
+    if odds_tot and odds_tot.get("over") and odds_tot.get("under"):
+        try:
+            o_over = float(odds_tot["over"])
+            o_under = float(odds_tot["under"])
+            betting_markets["total_2_5"]["over"] = o_over
+            betting_markets["total_2_5"]["under"] = o_under
+            
+            p_over = 1 / o_over
+            p_under = 1 / o_under
+            s = p_over + p_under
+            if s > 0:
+                p_over_n = p_over / s
+                p_under_n = p_under / s
+                betting_markets["total_2_5"]["probabilities"] = {
+                    "over": float(round(p_over_n * 100, 1)),
+                    "under": float(round(p_under_n * 100, 1))
+                }
+                updated = True
+        except (ValueError, ZeroDivisionError, TypeError):
+            pass
+
+    # 3. Update BTTS
+    odds_btts = realtime_odds.get("btts")
+    if odds_btts and odds_btts.get("yes") and odds_btts.get("no"):
+        try:
+            o_yes = float(odds_btts["yes"])
+            o_no = float(odds_btts["no"])
+            betting_markets["btts"]["yes"] = o_yes
+            betting_markets["btts"]["no"] = o_no
+            
+            p_yes = 1 / o_yes
+            p_no = 1 / o_no
+            s = p_yes + p_no
+            if s > 0:
+                p_yes_n = p_yes / s
+                p_no_n = p_no / s
+                betting_markets["btts"]["probabilities"] = {
+                    "yes": float(round(p_yes_n * 100, 1)),
+                    "no": float(round(p_no_n * 100, 1))
+                }
+                updated = True
+        except (ValueError, ZeroDivisionError, TypeError):
+            pass
+
+    # 4. Recalculate Recommended Tip if odds were updated
+    if updated:
+        try:
+            p_home = betting_markets["1x2"]["probabilities"]["1"] / 100.0
+            p_away = betting_markets["1x2"]["probabilities"]["2"] / 100.0
+            p_1x = betting_markets["double_chance"]["probabilities"]["1x"] / 100.0
+            p_x2 = betting_markets["double_chance"]["probabilities"]["x2"] / 100.0
+            p_over_2_5 = betting_markets["total_2_5"]["probabilities"]["over"] / 100.0
+            p_under_2_5 = betting_markets["total_2_5"]["probabilities"]["under"] / 100.0
+            p_btts_yes = betting_markets["btts"]["probabilities"]["yes"] / 100.0
+            p_btts_no = betting_markets["btts"]["probabilities"]["no"] / 100.0
+            
+            tips = []
+            if p_home > 0.60:
+                tips.append({"type": "1X2", "selection": "1", "odds": betting_markets["1x2"]["1"], "confidence": p_home, "text": f"Home Win (1) @ {betting_markets['1x2']['1']}"})
+            elif p_away > 0.60:
+                tips.append({"type": "1X2", "selection": "2", "odds": betting_markets["1x2"]["2"], "confidence": p_away, "text": f"Away Win (2) @ {betting_markets['1x2']['2']}"})
+                
+            if p_1x > 0.80:
+                tips.append({"type": "Double Chance", "selection": "1X", "odds": betting_markets["double_chance"]["1x"], "confidence": p_1x, "text": f"Home Win or Draw (1X) @ {betting_markets['double_chance']['1x']}"})
+            elif p_x2 > 0.80:
+                tips.append({"type": "Double Chance", "selection": "X2", "odds": betting_markets["double_chance"]["x2"], "confidence": p_x2, "text": f"Draw or Away Win (X2) @ {betting_markets['double_chance']['x2']}"})
+                
+            if p_over_2_5 > 0.60:
+                tips.append({"type": "Total Goals", "selection": "Over 2.5", "odds": betting_markets["total_2_5"]["over"], "confidence": p_over_2_5, "text": f"Total Over 2.5 @ {betting_markets['total_2_5']['over']}"})
+            elif p_under_2_5 > 0.60:
+                tips.append({"type": "Total Goals", "selection": "Under 2.5", "odds": betting_markets["total_2_5"]["under"], "confidence": p_under_2_5, "text": f"Total Under 2.5 @ {betting_markets['total_2_5']['under']}"})
+                
+            if p_btts_yes > 0.60:
+                tips.append({"type": "Both Teams to Score", "selection": "Yes", "odds": betting_markets["btts"]["yes"], "confidence": p_btts_yes, "text": f"BTTS (Yes) @ {betting_markets['btts']['yes']}"})
+            elif p_btts_no > 0.60:
+                tips.append({"type": "Both Teams to Score", "selection": "No", "odds": betting_markets["btts"]["no"], "confidence": p_btts_no, "text": f"BTTS (No) @ {betting_markets['btts']['no']}"})
+
+            tips.sort(key=lambda x: x["confidence"], reverse=True)
+            if not tips:
+                candidate = {
+                    "type": "Double Chance",
+                    "selection": "1X" if p_1x >= p_x2 else "X2",
+                    "odds": betting_markets["double_chance"]["1x"] if p_1x >= p_x2 else betting_markets["double_chance"]["x2"],
+                    "confidence": max(p_1x, p_x2)
+                }
+                candidate["text"] = f"Double Chance ({candidate['selection']}) @ {candidate['odds']}"
+                best_tip = candidate
+            else:
+                best_tip = tips[0]
+                
+            betting_markets["recommended_tip"] = {
+                "market": best_tip["type"],
+                "selection": best_tip["selection"],
+                "odds": best_tip["odds"],
+                "confidence": float(round(best_tip["confidence"] * 100, 1)),
+                "text": best_tip["text"]
+            }
+        except Exception:
+            pass
+            
+    return betting_markets
+
+
+def calculate_betting_markets_with_search(
+    home_xg: float,
+    away_xg: float,
+    home_name: str,
+    away_name: str,
+    is_simulated: bool = False
+) -> dict:
+    """Orchestrates standard mathematical odds generation and web search AI odds extraction."""
+    # 1. Baseline Poisson odds
+    betting_markets = calculate_betting_markets(home_xg, away_xg)
+    
+    # 2. Skip search for simulated/mock matches
+    if is_simulated or "simulated" in home_name.lower() or "simulated" in away_name.lower():
+        print(f"[Odds Search] Skipping real-time odds search for simulated match: {home_name} vs {away_name}")
+        return betting_markets
+        
+    # 3. Perform web search and override if successful
+    try:
+        print(f"[Odds Search] Scraping web for real-time odds: {home_name} vs {away_name}")
+        search_context = search_yahoo_odds(home_name, away_name)
+        if search_context:
+            realtime_odds = extract_odds_with_ai(home_name, away_name, search_context)
+            if realtime_odds:
+                print(f"[Odds Search] Real-time odds found. Overriding baseline.")
+                betting_markets = override_betting_markets_with_realtime(betting_markets, realtime_odds)
+            else:
+                print(f"[Odds Search] No structured odds found in search context.")
+        else:
+            print(f"[Odds Search] Search context is empty.")
+    except Exception as e:
+        print(f"[Odds Search] Unexpected error during search/override: {e}")
+        
+    return betting_markets
+
