@@ -18,6 +18,38 @@ from auth import create_token, decode_token
 
 app = FastAPI(title="Kyonayr Playground API", root_path="/api")
 
+import threading
+
+TELEGRAM_BOT_TOKEN = "8866666468:AAETeLUe-X6DRpNIlTKPlNffczP_wKmQFMg"
+WEBHOOK_SET = False
+
+def setup_telegram_webhook(base_url: str):
+    global WEBHOOK_SET
+    if WEBHOOK_SET:
+        return
+    webhook_url = f"{base_url}telegram/webhook"
+    if webhook_url.startswith("http://"):
+        webhook_url = "https://" + webhook_url[7:]
+    
+    # Clean double slashes in URL path (except https://)
+    parts = webhook_url.split("://")
+    if len(parts) == 2:
+        scheme, path = parts
+        path = path.replace("//", "/")
+        webhook_url = f"{scheme}://{path}"
+        
+    print(f"[Telegram Bot] Setting webhook to: {webhook_url}")
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook"
+        resp = requests.post(url, json={"url": webhook_url}, timeout=10)
+        if resp.status_code == 200:
+            print("[Telegram Bot] Webhook set successfully.")
+            WEBHOOK_SET = True
+        else:
+            print(f"[Telegram Bot] Failed to set webhook: {resp.text}")
+    except Exception as e:
+        print(f"[Telegram Bot] Error setting webhook: {e}")
+
 # CORS Origin Lockdowns
 ALLOWED_ORIGINS_ENV = os.environ.get("ALLOWED_ORIGINS")
 if ALLOWED_ORIGINS_ENV:
@@ -38,6 +70,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def telegram_webhook_setup_middleware(request: Request, call_next):
+    global WEBHOOK_SET
+    if not WEBHOOK_SET and "telegram" not in request.url.path:
+        base_url = str(request.base_url)
+        threading.Thread(target=setup_telegram_webhook, args=(base_url,), daemon=True).start()
+    response = await call_next(request)
+    return response
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -796,6 +837,189 @@ async def predict(req: PredictRequest, request: Request, current_user: dict = De
         },
         "credits_remaining": new_credits,
     }
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    try:
+        update = await request.json()
+    except Exception:
+        return "OK"
+        
+    message = update.get("message", {})
+    chat = message.get("chat", {})
+    chat_id = chat.get("id")
+    text = message.get("text", "").strip()
+    
+    if not chat_id or not text:
+        return "OK"
+        
+    def send_tg_msg(text_to_send: str):
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": text_to_send,
+            "parse_mode": "Markdown"
+        }
+        try:
+            r = requests.post(url, json=payload, timeout=10)
+            if r.status_code != 200:
+                print(f"[Telegram Bot] Markdown failed (status {r.status_code}), sending plain text...")
+                payload.pop("parse_mode", None)
+                requests.post(url, json=payload, timeout=10)
+        except Exception as e:
+            print(f"[Telegram Bot] Error sending message: {e}")
+
+    # Welcome / Help message
+    if text.lower() in ["/start", "/help", "help", "start", "halo", "hi", "hey"]:
+        welcome_text = "👋 *Halo! Selamat datang di Bot Prediksi Sepak Bola Kyonayr!*\n\n" \
+                       "Kirimkan nama tim yang ingin Anda prediksi (contoh: `Chelsea vs Arsenal` atau `Barcelona vs Real Madrid`).\n\n" \
+                       "Saya akan memberikan:\n" \
+                       "1. 📊 *Prediksi Skor Matematis* (Poisson Engine)\n" \
+                       "2. 📝 *Analisis AI & Taktik* (Menggunakan model Qwen3-235B)\n" \
+                       "3. 💰 *Pasaran Taruhan & Odds Desimal* (1X2, Double Chance, Over/Under 2.5, BTTS)\n" \
+                       "4. 💡 *Rekomendasi Taruhan AI*"
+        send_tg_msg(welcome_text)
+        return "OK"
+
+    # Process prediction request
+    extracted = extract_teams_and_date(text)
+    if extracted["confidence"] == "low" or not extracted["home_team"]:
+        fallback_msg = "⚠️ *Format pesan tidak dikenali.*\n\n" \
+                       "Silakan kirim nama tim dengan format seperti:\n" \
+                       "- `Chelsea vs Arsenal` (prediksi langsung)\n" \
+                       "- `Barcelona lawan Real Madrid besok` (prediksi terjadwal)\n" \
+                       "- `Liverpool vs Manchester City`"
+        send_tg_msg(fallback_msg)
+        return "OK"
+
+    home_name = extracted["home_team"]
+    away_name = extracted["away_team"]
+    match_date = extracted.get("date", "")
+
+    # Send typing/processing status first to improve UX
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendChatAction",
+            json={"chat_id": chat_id, "action": "typing"},
+            timeout=3
+        )
+    except Exception:
+        pass
+
+    # Fetch team data
+    home_data = fetch_team_data(home_name)
+    away_data = fetch_team_data(away_name)
+
+    if not home_data.get("found") or not away_data.get("found"):
+        missing = []
+        if not home_data.get("found"):
+            missing.append(home_name)
+        if not away_data.get("found"):
+            missing.append(away_name)
+        error_msg = f"❌ *Data Tim Tidak Ditemukan*\n\n" \
+                    f"Maaf, tidak bisa menemukan data untuk: *{', '.join(missing)}*.\n" \
+                    f"Coba gunakan nama tim yang lebih lengkap (misalnya: Manchester United atau FC Barcelona)."
+        send_tg_msg(error_msg)
+        return "OK"
+
+    h2h = get_h2h(home_data, away_data)
+    home_stats = home_data.get("stats", calculate_team_stats(home_data.get("last_results", [])))
+    away_stats = away_data.get("stats", calculate_team_stats(away_data.get("last_results", [])))
+    home_stats["name"] = home_data.get("name", home_name)
+    away_stats["name"] = away_data.get("name", away_name)
+
+    predicted_home, predicted_away, home_xg, away_xg = predict_score(home_stats, away_stats, h2h=h2h)
+    betting_markets = calculate_betting_markets(home_xg, away_xg)
+
+    actual_home = home_data.get("name", home_name)
+    actual_away = away_data.get("name", away_name)
+
+    # Generate AI reasoning
+    reasoning = ""
+    # Try LLM7 Qwen3-235B
+    reasoning = generate_llm7_reasoning(
+        actual_home, actual_away,
+        home_data.get("last_results", []),
+        away_data.get("last_results", []),
+        h2h,
+        home_stats,
+        away_stats,
+        predicted_home, predicted_away,
+        home_roster=home_data.get("roster", []),
+        away_roster=away_data.get("roster", []),
+    )
+    
+    # Fallback to Pollinations
+    if not reasoning:
+        reasoning = generate_pollinations_get_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+            home_roster=home_data.get("roster", []),
+            away_roster=away_data.get("roster", []),
+        )
+
+    # Fallback to local rules-based
+    if not reasoning:
+        reasoning = build_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+        )
+
+    # Format Telegram reply
+    reply_text = f"⚔️ *ANALISIS PERTANDINGAN: {actual_home} vs {actual_away}*\n"
+    if match_date:
+        reply_text += f"📅 Tanggal Laga: {match_date}\n"
+    reply_text += f"📊 Prediksi Skor Matematis: *{predicted_home} - {predicted_away}*\n\n"
+
+    reply_text += f"📝 *Ulasan Taktis & Analisis AI:*\n{reasoning}\n\n"
+
+    if betting_markets:
+        reply_text += "💰 *PASARAN TARUHAN & ODDS (1xBet style):*\n"
+        # 1X2
+        odds_1x2 = betting_markets.get("1x2", {})
+        reply_text += f"• *Hasil Akhir (1X2)*:\n" \
+                      f"  - Home (1): `{odds_1x2.get('1', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('1', 0)}%)\n" \
+                      f"  - Draw (X): `{odds_1x2.get('x', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('x', 0)}%)\n" \
+                      f"  - Away (2): `{odds_1x2.get('2', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('2', 0)}%)\n\n"
+        
+        # Double Chance
+        odds_dc = betting_markets.get("double_chance", {})
+        reply_text += f"• *Kesempatan Ganda (Double Chance)*:\n" \
+                      f"  - 1X: `{odds_dc.get('1x', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('1x', 0)}%)\n" \
+                      f"  - 12: `{odds_dc.get('12', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('12', 0)}%)\n" \
+                      f"  - X2: `{odds_dc.get('x2', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('x2', 0)}%)\n\n"
+                      
+        # Total Goal
+        odds_total = betting_markets.get("total_2_5", {})
+        reply_text += f"• *Total Gol (Over/Under 2.5)*:\n" \
+                      f"  - Over 2.5: `{odds_total.get('over', 1.00):.2f}` ({odds_total.get('probabilities', {}).get('over', 0)}%)\n" \
+                      f"  - Under 2.5: `{odds_total.get('under', 1.00):.2f}` ({odds_total.get('probabilities', {}).get('under', 0)}%)\n\n"
+                      
+        # BTTS
+        odds_btts = betting_markets.get("btts", {})
+        reply_text += f"• *Kedua Tim Mencetak Gol (BTTS)*:\n" \
+                      f"  - Yes: `{odds_btts.get('yes', 1.00):.2f}` ({odds_btts.get('probabilities', {}).get('yes', 0)}%)\n" \
+                      f"  - No: `{odds_btts.get('no', 1.00):.2f}` ({odds_btts.get('probabilities', {}).get('no', 0)}%)\n\n"
+                      
+        # Recommended Tip
+        tip = betting_markets.get("recommended_tip", {})
+        reply_text += f"💡 *Rekomendasi Betting AI*:\n" \
+                      f"  *Pilihan*: `{tip.get('text', '')}`\n" \
+                      f"  *Kepercayaan*: `{tip.get('confidence', 0.0)}%` (Poisson Mode)\n"
+
+    send_tg_msg(reply_text)
+    return "OK"
 
 
 if __name__ == "__main__":
