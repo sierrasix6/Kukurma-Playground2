@@ -989,46 +989,91 @@ async def telegram_webhook(request: Request):
         )
 
     # Format Telegram reply
-    reply_text = f"⚔️ *ANALISIS PERTANDINGAN: {actual_home} vs {actual_away}*\n"
+    # Header
+    reply_text = f"🏟️ *TELEGRAM FOOTBALL SIGNAL* (1xBet style)\n" \
+                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" \
+                 f"⚔️ *PERTANDINGAN:* `{actual_home}` vs `{actual_away}`\n"
     if match_date:
-        reply_text += f"📅 Tanggal Laga: {match_date}\n"
-    reply_text += f"📊 Prediksi Skor Matematis: *{predicted_home} - {predicted_away}*\n\n"
+        reply_text += f"📅 *Tanggal Laga:* {match_date}\n"
+    reply_text += f"📊 *Prediksi Skor Matematis:* *{predicted_home} - {predicted_away}*\n" \
+                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-    reply_text += f"📝 *Ulasan Taktis & Analisis AI:*\n{reasoning}\n\n"
+    # AI Tactical Reasoning
+    reply_text += f"📝 *ULASAN TAKTIS & ANALISIS AI:*\n{reasoning}\n\n"
 
     if betting_markets:
         reply_text += "💰 *PASARAN TARUHAN & ODDS (1xBet style):*\n"
-        # 1X2
-        odds_1x2 = betting_markets.get("1x2", {})
-        reply_text += f"• *Hasil Akhir (1X2)*:\n" \
-                      f"  - Home (1): `{odds_1x2.get('1', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('1', 0)}%)\n" \
-                      f"  - Draw (X): `{odds_1x2.get('x', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('x', 0)}%)\n" \
-                      f"  - Away (2): `{odds_1x2.get('2', 1.00):.2f}` ({odds_1x2.get('probabilities', {}).get('2', 0)}%)\n\n"
         
-        # Double Chance
+        odds_1x2 = betting_markets.get("1x2", {})
         odds_dc = betting_markets.get("double_chance", {})
-        reply_text += f"• *Kesempatan Ganda (Double Chance)*:\n" \
-                      f"  - 1X: `{odds_dc.get('1x', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('1x', 0)}%)\n" \
-                      f"  - 12: `{odds_dc.get('12', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('12', 0)}%)\n" \
-                      f"  - X2: `{odds_dc.get('x2', 1.00):.2f}` ({odds_dc.get('probabilities', {}).get('x2', 0)}%)\n\n"
-                      
-        # Total Goal
         odds_total = betting_markets.get("total_2_5", {})
-        reply_text += f"• *Total Gol (Over/Under 2.5)*:\n" \
-                      f"  - Over 2.5: `{odds_total.get('over', 1.00):.2f}` ({odds_total.get('probabilities', {}).get('over', 0)}%)\n" \
-                      f"  - Under 2.5: `{odds_total.get('under', 1.00):.2f}` ({odds_total.get('probabilities', {}).get('under', 0)}%)\n\n"
-                      
-        # BTTS
         odds_btts = betting_markets.get("btts", {})
-        reply_text += f"• *Kedua Tim Mencetak Gol (BTTS)*:\n" \
-                      f"  - Yes: `{odds_btts.get('yes', 1.00):.2f}` ({odds_btts.get('probabilities', {}).get('yes', 0)}%)\n" \
-                      f"  - No: `{odds_btts.get('no', 1.00):.2f}` ({odds_btts.get('probabilities', {}).get('no', 0)}%)\n\n"
-                      
-        # Recommended Tip
         tip = betting_markets.get("recommended_tip", {})
-        reply_text += f"💡 *Rekomendasi Betting AI*:\n" \
-                      f"  *Pilihan*: `{tip.get('text', '')}`\n" \
-                      f"  *Kepercayaan*: `{tip.get('confidence', 0.0)}%` (Poisson Mode)\n"
+        
+        # Aligned Grid for Markets
+        # 1X2 & Double Chance
+        o1 = f"{odds_1x2.get('1', 1.00):.2f}"
+        ox = f"{odds_1x2.get('x', 1.00):.2f}"
+        o2 = f"{odds_1x2.get('2', 1.00):.2f}"
+        p1 = f"{odds_1x2.get('probabilities', {}).get('1', 0):.0f}%"
+        px = f"{odds_1x2.get('probabilities', {}).get('x', 0):.0f}%"
+        p2 = f"{odds_1x2.get('probabilities', {}).get('2', 0):.0f}%"
+        
+        o_1x = f"{odds_dc.get('1x', 1.00):.2f}"
+        o_12 = f"{odds_dc.get('12', 1.00):.2f}"
+        o_x2 = f"{odds_dc.get('x2', 1.00):.2f}"
+        p_1x = f"{odds_dc.get('probabilities', {}).get('1x', 0):.0f}%"
+        p_12 = f"{odds_dc.get('probabilities', {}).get('12', 0):.0f}%"
+        p_x2 = f"{odds_dc.get('probabilities', {}).get('x2', 0):.0f}%"
+        
+        # Totals & BTTS
+        o_over = f"{odds_total.get('over', 1.00):.2f}"
+        o_under = f"{odds_total.get('under', 1.00):.2f}"
+        p_over = f"{odds_total.get('probabilities', {}).get('over', 0):.0f}%"
+        p_under = f"{odds_total.get('probabilities', {}).get('under', 0):.0f}%"
+        
+        o_byes = f"{odds_btts.get('yes', 1.00):.2f}"
+        o_bno = f"{odds_btts.get('no', 1.00):.2f}"
+        p_byes = f"{odds_btts.get('probabilities', {}).get('yes', 0):.0f}%"
+        p_bno = f"{odds_btts.get('probabilities', {}).get('no', 0):.0f}%"
+
+        # 1X2 and DC Grid Table (width 40 chars)
+        reply_text += "```text\n"
+        reply_text += "┌──────────────────────────────────────┐\n"
+        reply_text += "│        1X2         │  DOUBLE CHANCE  │\n"
+        reply_text += "├────────────────────┼─────────────────┤\n"
+        reply_text += f"│ 1: {o1:<5} ({p1:>4})   │ 1X: {o_1x:<4} ({p_1x:>3})  │\n"
+        reply_text += f"│ X: {ox:<5} ({px:>4})   │ 12: {o_12:<4} ({p_12:>3})  │\n"
+        reply_text += f"│ 2: {o2:<5} ({p2:>4})   │ X2: {o_x2:<4} ({p_x2:>3})  │\n"
+        reply_text += "└────────────────────┴─────────────────┘\n"
+        reply_text += "```\n"
+
+        # Totals and BTTS Grid Table (width 44 chars)
+        reply_text += "```text\n"
+        reply_text += "┌──────────────────────────────────────────┐\n"
+        reply_text += "│  TOTALS (OVER/UNDER 2.5) │     BTTS      │\n"
+        reply_text += "├──────────────────────────┼───────────────┤\n"
+        reply_text += f"│ Over 2.5:  {o_over:<5} ({p_over:>3}) │ Yes: {o_byes:<5} ({p_byes:>3}) │\n"
+        reply_text += f"│ Under 2.5: {o_under:<5} ({p_under:>3}) │ No:  {o_bno:<5} ({p_bno:>3}) │\n"
+        reply_text += "└──────────────────────────┴───────────────┘\n"
+        reply_text += "```\n\n"
+        
+        # Recommended Tip Ticket Box (width 44 chars)
+        reply_text += "💡 *REKOMENDASI TARUHAN AI:*\n"
+        
+        tip_market = tip.get('market', 'Double Chance')
+        tip_selection = tip.get('selection', '1X')
+        tip_odds = f"{tip.get('odds', 1.00):.2f}"
+        tip_conf = f"{tip.get('confidence', 0.0):.1f}%"
+        
+        reply_text += "```text\n"
+        reply_text += "┌──────────────────────────────────────────┐\n"
+        reply_text += f"│ PILIHAN   : {tip_selection:<28} │\n"
+        reply_text += f"│ PASARAN   : {tip_market:<28} │\n"
+        reply_text += f"│ ODDS      : {tip_odds:<28} │\n"
+        reply_text += f"│ KEYAKINAN : {tip_conf:<28} │\n"
+        reply_text += "└──────────────────────────────────────────┘\n"
+        reply_text += "```\n"
 
     send_tg_msg(reply_text)
     return "OK"
