@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from nlp_extractor import extract_teams_and_date
-from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats, calculate_betting_markets, calculate_betting_markets_with_search
+from data_fetcher import fetch_team_data, get_h2h, predict_score, calculate_team_stats, calculate_betting_markets, calculate_betting_markets_with_search, search_expert_predictions
 from database import init_db, get_user_by_username, get_user_by_id, create_user, verify_password, deduct_credit, UNLIMITED
 from auth import create_token, decode_token
 
@@ -538,6 +538,195 @@ Tulis ulasan Anda dengan membaginya ke dalam 3 poin berikut:
     return ""
 
 
+def generate_internet_enhanced_reasoning(
+    home_name: str,
+    away_name: str,
+    home_results: list[dict],
+    away_results: list[dict],
+    h2h: list[dict],
+    home_stats: dict,
+    away_stats: dict,
+    predicted_home: int,
+    predicted_away: int,
+    home_roster: list[dict] = None,
+    away_roster: list[dict] = None,
+) -> str:
+    """
+    MASTER PREDICTION ENGINE: Searches the internet for expert predictions,
+    then synthesizes them with match statistics using multiple AI models.
+    Flow: Internet Search → AI Synthesis → Final Prediction
+    """
+    import time as _time
+    
+    # ─── STEP 1: Search the internet for expert predictions ───
+    print(f"[Internet AI Engine] Step 1: Searching internet for expert predictions on {home_name} vs {away_name}...")
+    internet_predictions = ""
+    try:
+        internet_predictions = search_expert_predictions(home_name, away_name)
+    except Exception as e:
+        print(f"[Internet AI Engine] Search error: {e}")
+    
+    if internet_predictions:
+        print(f"[Internet AI Engine] Found internet predictions ({len(internet_predictions)} chars). Feeding to AI...")
+    else:
+        print(f"[Internet AI Engine] No internet predictions found. AI will rely on statistics only.")
+    
+    # ─── STEP 2: Build comprehensive data context ───
+    h_results_str = "\n".join([f"- vs {r['opponent']}: {r['score']} ({r['outcome']}) [{r['venue']}]" for r in home_results])
+    a_results_str = "\n".join([f"- vs {r['opponent']}: {r['score']} ({r['outcome']}) [{r['venue']}]" for r in away_results])
+    h2h_str = "\n".join([f"- {m['home']} vs {m['away']}: {m['score']} ({m['date']})" for m in h2h]) if h2h else "Tidak ada data H2H."
+    
+    h_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in home_roster[:18]]) if home_roster else "Tidak tersedia."
+    a_roster_str = ", ".join([f"{p['name']} ({p['position']})" for p in away_roster[:18]]) if away_roster else "Tidak tersedia."
+
+    # ─── STEP 3: Build the MASTER PROMPT with internet context ───
+    internet_section = ""
+    if internet_predictions:
+        internet_section = f"""
+[SUMBER PREDIKSI DARI INTERNET - SANGAT PENTING]
+Berikut adalah ringkasan prediksi dan analisis dari berbagai pakar/situs prediksi sepak bola di internet.
+Anda WAJIB mempertimbangkan informasi ini sebagai sumber utama prediksi Anda.
+Jika ada konsensus dari banyak sumber, gunakan itu sebagai dasar prediksi akhir Anda.
+
+{internet_predictions}
+
+[AKHIR SUMBER INTERNET]
+"""
+    
+    prompt = f"""Anda adalah analis sepak bola senior berpengalaman 20+ tahun, mantan analis data di klub elit Eropa, dan pakar statistik olahraga.
+
+TUGAS UTAMA: Berikan prediksi pertandingan yang AKURAT berdasarkan kombinasi data statistik DAN prediksi pakar dari internet.
+
+{internet_section}
+
+[DATA STATISTIK PERTANDINGAN]
+Tim Tuan Rumah: {home_name}
+Tim Tamu: {away_name}
+
+5 Laga Terakhir {home_name}:
+{h_results_str}
+Statistik: Gol/laga={home_stats.get('avg_scored', 0)}, Kebobolan/laga={home_stats.get('avg_conceded', 0)}, Win streak={home_stats.get('win_streak', 0)}, Clean sheets={home_stats.get('clean_sheets', 0)}, Form={home_stats.get('form_label', 'N/A')}, Goal diff={home_stats.get('goal_diff', 0)}
+
+5 Laga Terakhir {away_name}:
+{a_results_str}
+Statistik: Gol/laga={away_stats.get('avg_scored', 0)}, Kebobolan/laga={away_stats.get('avg_conceded', 0)}, Win streak={away_stats.get('win_streak', 0)}, Clean sheets={away_stats.get('clean_sheets', 0)}, Form={away_stats.get('form_label', 'N/A')}, Goal diff={away_stats.get('goal_diff', 0)}
+
+Head-to-Head:
+{h2h_str}
+
+Skuad {home_name}: {h_roster_str}
+Skuad {away_name}: {a_roster_str}
+
+Prediksi Matematis Poisson: {home_name} {predicted_home} - {predicted_away} {away_name}
+
+[FORMAT OUTPUT - Ikuti persis]
+Tulis dalam Bahasa Indonesia, format profesional tanpa emoji, maksimal 3 paragraf padat:
+
+1. **Analisis & Sumber Prediksi**: Rangkum apa yang dikatakan para pakar/situs prediksi dari internet tentang pertandingan ini (jika ada). Sebutkan konsensus prediksi mereka. Jika tidak ada data internet, analisis berdasarkan statistik murni. Sebutkan 1-2 pemain kunci.
+
+2. **Faktor Kunci & Dinamika Taktis**: Bahas faktor-faktor penentu: form terkini, performa kandang/tandang, kekuatan lini serang vs pertahanan, dan momentum. Jelaskan mengapa satu tim lebih diunggulkan.
+
+3. **Prediksi Final & Verdict**: Berikan prediksi skor akhir Anda. PENTING: Jika pakar internet memberikan prediksi yang berbeda dari model Poisson ({predicted_home}-{predicted_away}), Anda BOLEH mengubah prediksi skor sesuai konsensus pakar internet. Jelaskan alasan taktis di balik prediksi skor Anda."""
+
+    # ─── STEP 4: Try multiple AI models (cascade) ───
+    
+    # Model 1: Qwen3-235B via LLM7 (strongest reasoning)
+    try:
+        print("[Internet AI Engine] Trying Qwen3-235B via LLM7...")
+        resp = requests.post(
+            "https://api.llm7.io/v1/chat/completions",
+            json={
+                "model": "qwen3-235b",
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "temperature": 0.4,
+            },
+            headers={"Content-Type": "application/json", "Authorization": "Bearer unused"},
+            timeout=25,
+        )
+        if resp.status_code == 200:
+            content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content.strip() and len(content.strip()) > 100:
+                print("[Internet AI Engine] SUCCESS with Qwen3-235B")
+                return content.strip()
+    except Exception as e:
+        print(f"[Internet AI Engine] Qwen3-235B error: {e}")
+    
+    # Model 2: DeepSeek-R1 via Pollinations (deep reasoning)
+    try:
+        print("[Internet AI Engine] Trying DeepSeek-R1 via Pollinations...")
+        resp = requests.post(
+            "https://text.pollinations.ai/",
+            json={
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "model": "deepseek-reasoning",
+            },
+            timeout=25,
+        )
+        if resp.status_code == 200 and resp.text.strip() and len(resp.text.strip()) > 100:
+            print("[Internet AI Engine] SUCCESS with DeepSeek-R1")
+            return resp.text.strip()
+    except Exception as e:
+        print(f"[Internet AI Engine] DeepSeek-R1 error: {e}")
+    
+    # Model 3: Mistral Large via Pollinations
+    try:
+        print("[Internet AI Engine] Trying Mistral via Pollinations...")
+        resp = requests.post(
+            "https://text.pollinations.ai/",
+            json={
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "model": "mistral",
+            },
+            timeout=20,
+        )
+        if resp.status_code == 200 and resp.text.strip() and len(resp.text.strip()) > 100:
+            print("[Internet AI Engine] SUCCESS with Mistral")
+            return resp.text.strip()
+    except Exception as e:
+        print(f"[Internet AI Engine] Mistral error: {e}")
+    
+    # Model 4: OpenAI via Pollinations (final fallback)
+    try:
+        print("[Internet AI Engine] Trying OpenAI via Pollinations...")
+        resp = requests.post(
+            "https://text.pollinations.ai/",
+            json={
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "model": "openai",
+            },
+            timeout=20,
+        )
+        if resp.status_code == 200 and resp.text.strip() and len(resp.text.strip()) > 100:
+            print("[Internet AI Engine] SUCCESS with OpenAI")
+            return resp.text.strip()
+    except Exception as e:
+        print(f"[Internet AI Engine] OpenAI error: {e}")
+    
+    # Model 5: Codestral via LLM7 (last resort)
+    try:
+        print("[Internet AI Engine] Trying Codestral via LLM7...")
+        resp = requests.post(
+            "https://api.llm7.io/v1/chat/completions",
+            json={
+                "model": "codestral-latest",
+                "messages": [{"role": "user", "content": prompt.strip()}],
+                "temperature": 0.5,
+            },
+            headers={"Content-Type": "application/json", "Authorization": "Bearer unused"},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content.strip() and len(content.strip()) > 80:
+                print("[Internet AI Engine] SUCCESS with Codestral")
+                return content.strip()
+    except Exception as e:
+        print(f"[Internet AI Engine] Codestral error: {e}")
+    
+    print("[Internet AI Engine] All AI models failed.")
+    return ""
+
+
 def generate_gemini_reasoning(
     api_key: str,
     home_name: str,
@@ -701,8 +890,25 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
     ai_generated = False
     reasoning = ""
     
-    if api_key:
-        print("[AI Engine] Querying Google Gemini API...")
+    # PRIMARY: Internet-Enhanced AI Engine (searches internet for predictions → AI synthesis)
+    print("[AI Engine] PRIMARY: Internet-Enhanced Prediction Engine...")
+    reasoning = generate_internet_enhanced_reasoning(
+        actual_home, actual_away,
+        home_data.get("last_results", []),
+        away_data.get("last_results", []),
+        h2h,
+        home_stats,
+        away_stats,
+        predicted_home, predicted_away,
+        home_roster=home_data.get("roster", []),
+        away_roster=away_data.get("roster", []),
+    )
+    if reasoning:
+        ai_generated = True
+    
+    # FALLBACK 1: Gemini (if API key provided)
+    if not reasoning and api_key:
+        print("[AI Engine] FALLBACK 1: Google Gemini API...")
         reasoning = generate_gemini_reasoning(
             api_key,
             actual_home, actual_away,
@@ -718,8 +924,9 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
         if reasoning:
             ai_generated = True
             
+    # FALLBACK 2: LLM7 Qwen3 (without internet context)
     if not reasoning:
-        print("[AI Engine] Querying LLM7 Codestral Engine...")
+        print("[AI Engine] FALLBACK 2: LLM7 Codestral Engine...")
         reasoning = generate_llm7_reasoning(
             actual_home, actual_away,
             home_data.get("last_results", []),
@@ -734,8 +941,9 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
         if reasoning:
             ai_generated = True
 
+    # FALLBACK 3: Pollinations
     if not reasoning:
-        print("[AI Engine] Querying Pollinations GET Engine...")
+        print("[AI Engine] FALLBACK 3: Pollinations Engine...")
         reasoning = generate_pollinations_get_reasoning(
             actual_home, actual_away,
             home_data.get("last_results", []),
@@ -750,8 +958,9 @@ async def chat(req: ChatRequest, request: Request, current_user: dict = Depends(
         if reasoning:
             ai_generated = True
             
+    # FALLBACK 4: Local rules-based engine
     if not reasoning:
-        print("[AI Engine] Falling back to local rules-based engine...")
+        print("[AI Engine] FALLBACK 4: Local rules-based engine...")
         reasoning = build_reasoning(
             actual_home, actual_away,
             home_data.get("last_results", []),
@@ -883,10 +1092,11 @@ async def telegram_webhook(request: Request):
         welcome_text = "👋 *Halo! Selamat datang di Bot Prediksi Sepak Bola Kyonayr!*\n\n" \
                        "Kirimkan nama tim yang ingin Anda prediksi (contoh: `Chelsea vs Arsenal` atau `Barcelona vs Real Madrid`).\n\n" \
                        "Saya akan memberikan:\n" \
-                       "1. 📊 *Prediksi Skor Matematis* (Poisson Engine)\n" \
-                       "2. 📝 *Analisis AI & Taktik* (Menggunakan model Qwen3-235B)\n" \
-                       "3. 💰 *Pasaran Taruhan & Odds Desimal* (1X2, Double Chance, Over/Under 2.5, BTTS)\n" \
-                       "4. 💡 *Rekomendasi Taruhan AI*"
+                       "1. 🌐 *Prediksi Pakar dari Internet* (Dikumpulkan dari berbagai sumber terpercaya)\n" \
+                       "2. 🤖 *Analisis AI Multi-Model* (Qwen3-235B, DeepSeek-R1, GPT)\n" \
+                       "3. 📊 *Prediksi Skor Matematis* (Poisson Engine)\n" \
+                       "4. 💰 *Pasaran Taruhan & Odds* (1X2, DC, O/U 2.5, BTTS)\n" \
+                       "5. 💡 *Rekomendasi Taruhan AI*"
         send_tg_msg(welcome_text)
         return "OK"
 
@@ -947,10 +1157,10 @@ async def telegram_webhook(request: Request):
         home_xg, away_xg, actual_home, actual_away, is_simulated=is_simulated
     )
 
-    # Generate AI reasoning
+    # Generate AI reasoning — PRIMARY: Internet-Enhanced Engine
     reasoning = ""
-    # Try LLM7 Qwen3-235B
-    reasoning = generate_llm7_reasoning(
+    # Step 1: Internet-Enhanced AI (searches internet → AI synthesis)
+    reasoning = generate_internet_enhanced_reasoning(
         actual_home, actual_away,
         home_data.get("last_results", []),
         away_data.get("last_results", []),
@@ -962,7 +1172,21 @@ async def telegram_webhook(request: Request):
         away_roster=away_data.get("roster", []),
     )
     
-    # Fallback to Pollinations
+    # Fallback: LLM7 Qwen3-235B
+    if not reasoning:
+        reasoning = generate_llm7_reasoning(
+            actual_home, actual_away,
+            home_data.get("last_results", []),
+            away_data.get("last_results", []),
+            h2h,
+            home_stats,
+            away_stats,
+            predicted_home, predicted_away,
+            home_roster=home_data.get("roster", []),
+            away_roster=away_data.get("roster", []),
+        )
+    
+    # Fallback: Pollinations
     if not reasoning:
         reasoning = generate_pollinations_get_reasoning(
             actual_home, actual_away,
@@ -990,7 +1214,8 @@ async def telegram_webhook(request: Request):
 
     # Format Telegram reply
     # Header
-    reply_text = f"🏟️ *TELEGRAM FOOTBALL SIGNAL* (1xBet style)\n" \
+    reply_text = f"🏟️ *KYONAYR FOOTBALL PREDICTOR*\n" \
+                 f"🌐 _Prediksi berbasis Internet + AI Multi-Model_\n" \
                  f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" \
                  f"⚔️ *PERTANDINGAN:* `{actual_home}` vs `{actual_away}`\n"
     if match_date:
@@ -998,8 +1223,8 @@ async def telegram_webhook(request: Request):
     reply_text += f"📊 *Prediksi Skor Matematis:* *{predicted_home} - {predicted_away}*\n" \
                  f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-    # AI Tactical Reasoning
-    reply_text += f"📝 *ULASAN TAKTIS & ANALISIS AI:*\n{reasoning}\n\n"
+    # AI Tactical Reasoning (internet-sourced)
+    reply_text += f"🤖 *ANALISIS AI (Sumber: Internet + Statistik):*\n{reasoning}\n\n"
 
     if betting_markets:
         reply_text += "💰 *PASARAN TARUHAN & ODDS (1xBet style):*\n"

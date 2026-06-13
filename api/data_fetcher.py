@@ -1396,6 +1396,134 @@ def search_yahoo_odds(home_team: str, away_team: str) -> str:
     return ""
 
 
+def search_expert_predictions(home_team: str, away_team: str) -> str:
+    """Searches multiple sources for expert predictions, tips, and analysis about the match.
+    Returns aggregated prediction snippets from the internet."""
+    from bs4 import BeautifulSoup
+    
+    all_snippets = []
+    
+    # Multiple search queries for comprehensive prediction coverage
+    search_queries = [
+        f"{home_team} vs {away_team} prediction tips",
+        f"{home_team} vs {away_team} betting prediction expert analysis",
+        f"{home_team} vs {away_team} score prediction forebet",
+    ]
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    }
+    
+    # 1. Yahoo Search
+    for query in search_queries[:2]:
+        try:
+            resp = requests.get(
+                "https://search.yahoo.com/search",
+                params={"p": query},
+                headers=headers,
+                timeout=8
+            )
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                snippets = soup.find_all('div', class_='compText')
+                for idx, snippet_div in enumerate(snippets[:5]):
+                    parent = snippet_div.parent
+                    title = ""
+                    curr = parent
+                    for _ in range(4):
+                        if not curr:
+                            break
+                        h3 = curr.find('h3')
+                        if h3:
+                            title = h3.get_text().strip()
+                            break
+                        curr = curr.parent
+                    snippet_text = snippet_div.get_text().strip()
+                    if snippet_text and len(snippet_text) > 30:
+                        all_snippets.append(f"[Yahoo] {title}: {snippet_text}")
+        except Exception as e:
+            print(f"[Prediction Search] Yahoo error: {e}")
+    
+    # 2. DuckDuckGo HTML search
+    try:
+        ddg_query = f"{home_team} vs {away_team} prediction tips score"
+        resp = requests.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": ddg_query},
+            headers=headers,
+            timeout=8
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            results = soup.find_all('div', class_='result__body')
+            if not results:
+                results = soup.find_all('a', class_='result__a')
+            for r in results[:5]:
+                snippet_el = r.find('a', class_='result__snippet') or r
+                snippet_text = snippet_el.get_text().strip() if snippet_el else ""
+                title_el = r.find('a', class_='result__a')
+                title = title_el.get_text().strip() if title_el else ""
+                if snippet_text and len(snippet_text) > 20:
+                    all_snippets.append(f"[DDG] {title}: {snippet_text}")
+    except Exception as e:
+        print(f"[Prediction Search] DDG error: {e}")
+    
+    # 3. Google search fallback
+    try:
+        google_query = f"{home_team} vs {away_team} prediction analysis expert tips"
+        resp = requests.get(
+            "https://www.google.com/search",
+            params={"q": google_query, "hl": "en", "num": 8},
+            headers=headers,
+            timeout=8
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            # Try multiple selectors for Google results
+            for selector in ['div.BNeawe', 'span.aCOpRe', 'div.VwiC3b', 'div.IsZvec']:
+                divs = soup.select(selector)
+                for div in divs[:6]:
+                    text = div.get_text().strip()
+                    if text and len(text) > 30 and not text.startswith("http"):
+                        all_snippets.append(f"[Google] {text}")
+    except Exception as e:
+        print(f"[Prediction Search] Google error: {e}")
+    
+    # 4. Try Brave Search API (free tier, no key needed for web search)
+    try:
+        brave_query = f"{home_team} vs {away_team} match prediction"
+        resp = requests.get(
+            "https://search.brave.com/search",
+            params={"q": brave_query, "source": "web"},
+            headers=headers,
+            timeout=8
+        )
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            snippets = soup.find_all('p', class_='snippet-description')
+            if not snippets:
+                snippets = soup.select('div.snippet-content p')
+            for s in snippets[:4]:
+                text = s.get_text().strip()
+                if text and len(text) > 25:
+                    all_snippets.append(f"[Brave] {text}")
+    except Exception as e:
+        print(f"[Prediction Search] Brave error: {e}")
+    
+    # Deduplicate and limit
+    seen = set()
+    unique_snippets = []
+    for s in all_snippets:
+        key = s[:80].lower()
+        if key not in seen:
+            seen.add(key)
+            unique_snippets.append(s)
+    
+    result = "\n\n".join(unique_snippets[:15])
+    print(f"[Prediction Search] Found {len(unique_snippets)} unique prediction snippets for {home_team} vs {away_team}")
+    return result
+
+
 def extract_odds_with_ai(home_team: str, away_team: str, search_context: str) -> Optional[dict]:
     """Queries Pollinations unified AI endpoint to extract odds from search snippets."""
     if not search_context or not search_context.strip():
